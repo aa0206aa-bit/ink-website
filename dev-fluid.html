@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>fluid.js 引擎測試頁</title>
+<style>
+html, body { margin: 0; height: 100%; background: #0d0d11; }
+canvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import { InkSimulation } from './fluid.js';
+const sim = new InkSimulation(document.getElementById('c'));
+sim.setColor('#00b4aa');
+window.sim = sim; // console 調試用
+const colors = ['#00b4aa', '#c82878', '#d4af37', '#3c64dc'];
+let i = 0;
+addEventListener('keydown', (e) => {
+  if (e.key === 'c') sim.clear();
+  if (e.key === 'm') { i = (i + 1) % colors.length; sim.setColor(colors[i]); }
+  if (e.key === '1') sim.setMode('drop');
+  if (e.key === '2') sim.setMode('blow');
+  if (e.key === '3') sim.setMode('tilt');
+});
+console.log('[dev] keys: c=clear m=換色 1=滴墨 2=吹墨 3=傾斜');
+</script>
+</body>
+</html>

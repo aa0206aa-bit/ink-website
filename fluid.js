@@ -1,2 +1,542 @@
-// fluid.js — 序序流體引擎（Task 2 實作；此為 import 鏈驗證殼）
-export const FLUID_VERSION = 'dev';
+// fluid.js — 序序流體引擎
+// Stable fluids on GPU（Three.js 0.184.0 / WebGL2 / ShaderMaterial GLSL1 語法）
+// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / clear / pause / resume / destroy
+// 本檔 Task 2 實作 drop（滴墨）；blow（吹墨）、tilt（傾斜）於 Task 3 補上
+
+import * as THREE from './three.module.min.js';
+
+// ===== 可調參數（視覺調校都在這裡）=====
+const CONFIG = {
+  SIM_RESOLUTION: 144,            // 速度／壓力場短邊格數
+  DYE_RESOLUTION_DESKTOP: 1024,   // 染料場短邊（桌機）
+  DYE_RESOLUTION_MOBILE: 512,     // 染料場短邊（手機）
+  PRESSURE_ITERATIONS: 22,        // Jacobi 迭代次數
+  CURL_STRENGTH: 24,              // 渦度增強（墨紋捲曲感）
+  VELOCITY_DISSIPATION: 0.28,     // 速度消散（越大流動停得越快）
+  DYE_DISSIPATION: 0.06,          // 染料消散（接近 0＝墨留在紙上）
+  DROP_RADIUS: 0.0035,            // 滴墨染料半徑（uv² 高斯）
+  DROP_PULSE: 55,                 // 滴墨徑向速度脈衝強度
+  DROP_MOVE_GAP: 0.06,            // 拖曳連滴的最小間距（uv）
+  BLOW_FORCE: 4500,               // 吹墨推力（Task 3 使用）
+  BLOW_RADIUS: 0.0007,            // 吹墨作用半徑（細→觸鬚）（Task 3）
+  TILT_FORCE: 230,                // 傾斜全域力（Task 3）
+  TILT_DECAY: 0.97,               // 鬆手後每幀衰減（Task 3）
+  BG_COLOR: [0.086, 0.086, 0.11], // 畫布底色 #16161c
+};
+
+// ===== Shaders =====
+// ShaderMaterial 已自動宣告 position / uv attribute 與 precision，勿重複宣告
+
+const VERTEX_SHADER = /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}
+`;
+
+// 高斯 splat：對 uTarget 疊加。uRadial=1 時 uValue.x 作徑向脈衝強度（滴墨暈開）
+const SPLAT_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uTarget;
+uniform float uAspect;
+uniform vec3 uValue;
+uniform vec2 uPoint;
+uniform float uRadius;
+uniform float uRadial;
+void main() {
+  vec2 p = vUv - uPoint;
+  p.x *= uAspect;
+  float fall = exp(-dot(p, p) / uRadius);
+  vec3 base = texture2D(uTarget, vUv).xyz;
+  vec3 add = uValue;
+  if (uRadial > 0.5) {
+    vec2 dir = (length(p) > 0.0001) ? normalize(p) : vec2(0.0);
+    add = vec3(dir * uValue.x, 0.0);
+  }
+  gl_FragColor = vec4(base + add * fall, 1.0);
+}
+`;
+
+// 半拉格朗日平流：座標回溯採樣＋消散
+const ADVECTION_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uVelocity;
+uniform sampler2D uSource;
+uniform vec2 uTexelSize;
+uniform float uDt;
+uniform float uDissipation;
+void main() {
+  vec2 coord = vUv - uDt * texture2D(uVelocity, vUv).xy * uTexelSize;
+  vec4 result = texture2D(uSource, coord);
+  float decay = 1.0 + uDissipation * uDt;
+  gl_FragColor = result / decay;
+}
+`;
+
+const DIVERGENCE_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uVelocity;
+uniform vec2 uTexelSize;
+void main() {
+  float L = texture2D(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).x;
+  float R = texture2D(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).x;
+  float B = texture2D(uVelocity, vUv - vec2(0.0, uTexelSize.y)).y;
+  float T = texture2D(uVelocity, vUv + vec2(0.0, uTexelSize.y)).y;
+  vec2 C = texture2D(uVelocity, vUv).xy;
+  if (vUv.x - uTexelSize.x < 0.0) { L = -C.x; }
+  if (vUv.x + uTexelSize.x > 1.0) { R = -C.x; }
+  if (vUv.y - uTexelSize.y < 0.0) { B = -C.y; }
+  if (vUv.y + uTexelSize.y > 1.0) { T = -C.y; }
+  float div = 0.5 * (R - L + T - B);
+  gl_FragColor = vec4(div, 0.0, 0.0, 1.0);
+}
+`;
+
+// Jacobi 壓力迭代
+const PRESSURE_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uPressure;
+uniform sampler2D uDivergence;
+uniform vec2 uTexelSize;
+void main() {
+  float L = texture2D(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x;
+  float R = texture2D(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+  float B = texture2D(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+  float T = texture2D(uPressure, vUv + vec2(0.0, uTexelSize.y)).x;
+  float div = texture2D(uDivergence, vUv).x;
+  float p = (L + R + B + T - div) * 0.25;
+  gl_FragColor = vec4(p, 0.0, 0.0, 1.0);
+}
+`;
+
+const GRADIENT_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uPressure;
+uniform sampler2D uVelocity;
+uniform vec2 uTexelSize;
+void main() {
+  float L = texture2D(uPressure, vUv - vec2(uTexelSize.x, 0.0)).x;
+  float R = texture2D(uPressure, vUv + vec2(uTexelSize.x, 0.0)).x;
+  float B = texture2D(uPressure, vUv - vec2(0.0, uTexelSize.y)).x;
+  float T = texture2D(uPressure, vUv + vec2(0.0, uTexelSize.y)).x;
+  vec2 vel = texture2D(uVelocity, vUv).xy;
+  vel -= 0.5 * vec2(R - L, T - B);
+  gl_FragColor = vec4(vel, 0.0, 1.0);
+}
+`;
+
+const CURL_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uVelocity;
+uniform vec2 uTexelSize;
+void main() {
+  float L = texture2D(uVelocity, vUv - vec2(uTexelSize.x, 0.0)).y;
+  float R = texture2D(uVelocity, vUv + vec2(uTexelSize.x, 0.0)).y;
+  float B = texture2D(uVelocity, vUv - vec2(0.0, uTexelSize.y)).x;
+  float T = texture2D(uVelocity, vUv + vec2(0.0, uTexelSize.y)).x;
+  float curl = 0.5 * ((R - L) - (T - B));
+  gl_FragColor = vec4(curl, 0.0, 0.0, 1.0);
+}
+`;
+
+// 渦度增強：放大既有旋轉，產生墨紋捲曲
+const VORTICITY_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uVelocity;
+uniform sampler2D uCurl;
+uniform vec2 uTexelSize;
+uniform float uCurlStrength;
+uniform float uDt;
+void main() {
+  float L = texture2D(uCurl, vUv - vec2(uTexelSize.x, 0.0)).x;
+  float R = texture2D(uCurl, vUv + vec2(uTexelSize.x, 0.0)).x;
+  float B = texture2D(uCurl, vUv - vec2(0.0, uTexelSize.y)).x;
+  float T = texture2D(uCurl, vUv + vec2(0.0, uTexelSize.y)).x;
+  float C = texture2D(uCurl, vUv).x;
+  vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
+  force /= (length(force) + 0.0001);
+  force *= uCurlStrength * C;
+  force.y *= -1.0;
+  vec2 vel = texture2D(uVelocity, vUv).xy;
+  vel += force * uDt;
+  vel = clamp(vel, vec2(-1000.0), vec2(1000.0));
+  gl_FragColor = vec4(vel, 0.0, 1.0);
+}
+`;
+
+// 乘法衰減（壓力場初始猜測）
+const CLEAR_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uTexture;
+uniform float uValue;
+void main() {
+  gl_FragColor = uValue * texture2D(uTexture, vUv);
+}
+`;
+
+// 染料場 → 螢幕：深底加色（發光感）＋微 dither 防色帶
+const DISPLAY_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uDye;
+uniform vec3 uBackground;
+void main() {
+  vec3 dye = texture2D(uDye, vUv).rgb;
+  vec3 color = uBackground + dye;
+  float n = fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453);
+  color += (n - 0.5) / 255.0;
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+// ===== 工具 =====
+
+function createDoubleFBO(w, h, opts) {
+  let a = new THREE.WebGLRenderTarget(w, h, opts);
+  let b = new THREE.WebGLRenderTarget(w, h, opts);
+  return {
+    get read() { return a; },
+    get write() { return b; },
+    swap() { [a, b] = [b, a]; },
+    dispose() { a.dispose(); b.dispose(); },
+  };
+}
+
+// ===== 引擎 =====
+
+export class InkSimulation {
+  constructor(canvas, opts = {}) {
+    const gl = canvas.getContext('webgl2', {
+      alpha: false, depth: false, stencil: false,
+      antialias: false, powerPreference: 'high-performance',
+    });
+    if (!gl) throw new Error('WEBGL_UNSUPPORTED');
+
+    this.canvas = canvas;
+    this.renderer = new THREE.WebGLRenderer({ canvas, context: gl });
+    this.renderer.autoClear = false;
+    this.renderer.setClearColor(0x000000, 1);
+
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+    this.mesh.frustumCulled = false;
+    this.scene.add(this.mesh);
+
+    this.mode = 'drop';
+    this.color = new THREE.Color('#00b4aa');
+    this.gravity = new THREE.Vector2(0, 0);
+    this.paused = false;
+    this._raf = 0;
+    this._lastTime = performance.now();
+    this._pointer = { down: false, x: 0, y: 0, lastDropX: -10, lastDropY: -10 };
+    this._w = 0; this._h = 0;
+
+    const isCoarse = matchMedia('(pointer: coarse)').matches;
+    this._dyeRes = opts.dyeResolution ||
+      (isCoarse ? CONFIG.DYE_RESOLUTION_MOBILE : CONFIG.DYE_RESOLUTION_DESKTOP);
+
+    this._initMaterials();
+    this._resize();
+    this._bindEvents();
+    this._loopBound = () => this._loop();
+    this._raf = requestAnimationFrame(this._loopBound);
+    console.log('[InkSim] ready');
+  }
+
+  // ---- 公開介面 ----
+
+  setColor(hex) { this.color.set(hex); }
+
+  setMode(mode) {
+    if (mode === 'drop' || mode === 'blow' || mode === 'tilt') this.mode = mode;
+  }
+
+  clear() {
+    const r = this.renderer;
+    const targets = [
+      this.dye.read, this.dye.write,
+      this.velocity.read, this.velocity.write,
+      this.pressure.read, this.pressure.write,
+    ];
+    for (const rt of targets) {
+      r.setRenderTarget(rt);
+      r.clear(true, false, false);
+    }
+    r.setRenderTarget(null);
+    this.gravity.set(0, 0);
+  }
+
+  pause() {
+    if (this.paused) return;
+    this.paused = true;
+    cancelAnimationFrame(this._raf);
+  }
+
+  resume() {
+    if (!this.paused) return;
+    this.paused = false;
+    this._lastTime = performance.now();
+    this._raf = requestAnimationFrame(this._loopBound);
+  }
+
+  destroy() {
+    cancelAnimationFrame(this._raf);
+    this._unbindEvents();
+    this._disposeFBOs();
+    for (const key of Object.keys(this.mats)) this.mats[key].dispose();
+    this.mesh.geometry.dispose();
+    this.renderer.dispose();
+  }
+
+  // ---- 內部：初始化 ----
+
+  _mat(frag, uniforms) {
+    return new THREE.ShaderMaterial({
+      vertexShader: VERTEX_SHADER,
+      fragmentShader: frag,
+      uniforms,
+      depthTest: false,
+      depthWrite: false,
+    });
+  }
+
+  _initMaterials() {
+    const v2 = () => ({ value: new THREE.Vector2() });
+    this.mats = {
+      splat: this._mat(SPLAT_FRAG, {
+        uTarget: { value: null }, uAspect: { value: 1 },
+        uValue: { value: new THREE.Vector3() }, uPoint: { value: new THREE.Vector2() },
+        uRadius: { value: 0.001 }, uRadial: { value: 0 },
+      }),
+      advection: this._mat(ADVECTION_FRAG, {
+        uVelocity: { value: null }, uSource: { value: null }, uTexelSize: v2(),
+        uDt: { value: 0 }, uDissipation: { value: 0 },
+      }),
+      divergence: this._mat(DIVERGENCE_FRAG, { uVelocity: { value: null }, uTexelSize: v2() }),
+      pressure: this._mat(PRESSURE_FRAG, {
+        uPressure: { value: null }, uDivergence: { value: null }, uTexelSize: v2(),
+      }),
+      gradient: this._mat(GRADIENT_FRAG, {
+        uPressure: { value: null }, uVelocity: { value: null }, uTexelSize: v2(),
+      }),
+      curl: this._mat(CURL_FRAG, { uVelocity: { value: null }, uTexelSize: v2() }),
+      vorticity: this._mat(VORTICITY_FRAG, {
+        uVelocity: { value: null }, uCurl: { value: null }, uTexelSize: v2(),
+        uCurlStrength: { value: CONFIG.CURL_STRENGTH }, uDt: { value: 0 },
+      }),
+      clear: this._mat(CLEAR_FRAG, { uTexture: { value: null }, uValue: { value: 0.8 } }),
+      display: this._mat(DISPLAY_FRAG, {
+        uDye: { value: null },
+        uBackground: { value: new THREE.Vector3(...CONFIG.BG_COLOR) },
+      }),
+    };
+  }
+
+  _disposeFBOs() {
+    if (this.velocity) this.velocity.dispose();
+    if (this.pressure) this.pressure.dispose();
+    if (this.dye) this.dye.dispose();
+    if (this.divergenceRT) this.divergenceRT.dispose();
+    if (this.curlRT) this.curlRT.dispose();
+  }
+
+  _resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.floor(this.canvas.clientWidth * dpr));
+    const h = Math.max(1, Math.floor(this.canvas.clientHeight * dpr));
+    if (w === this._w && h === this._h) return;
+    this._w = w; this._h = h;
+    this.renderer.setSize(w, h, false);
+
+    const aspect = w / h;
+    const simH = CONFIG.SIM_RESOLUTION;
+    const simW = Math.round(simH * aspect);
+    const dyeH = Math.min(this._dyeRes, h);
+    const dyeW = Math.round(dyeH * aspect);
+
+    const rtOpts = {
+      type: THREE.HalfFloatType, format: THREE.RGBAFormat,
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping,
+      depthBuffer: false,
+    };
+
+    // 注意：resize 會重建紋理、清空畫面內容（保像素密度、捨內容——設計取捨）
+    this._disposeFBOs();
+    this.velocity = createDoubleFBO(simW, simH, rtOpts);
+    this.pressure = createDoubleFBO(simW, simH, rtOpts);
+    this.divergenceRT = new THREE.WebGLRenderTarget(simW, simH, rtOpts);
+    this.curlRT = new THREE.WebGLRenderTarget(simW, simH, rtOpts);
+    this.dye = createDoubleFBO(dyeW, dyeH, rtOpts);
+    this._simTexel = new THREE.Vector2(1 / simW, 1 / simH);
+    this._aspect = aspect;
+  }
+
+  // ---- 內部：事件 ----
+
+  _uv(e) {
+    const r = this.canvas.getBoundingClientRect();
+    return [
+      (e.clientX - r.left) / r.width,
+      1 - (e.clientY - r.top) / r.height,
+    ];
+  }
+
+  _bindEvents() {
+    const c = this.canvas;
+    this._onDown = (e) => {
+      c.setPointerCapture(e.pointerId);
+      const [x, y] = this._uv(e);
+      this._pointer.down = true;
+      this._pointer.x = x; this._pointer.y = y;
+      if (this.mode === 'drop') {
+        this._drop(x, y);
+        this._pointer.lastDropX = x; this._pointer.lastDropY = y;
+      }
+      // blow / tilt 的 down 行為於 Task 3 加入
+    };
+    this._onMove = (e) => {
+      if (!this._pointer.down) return;
+      const [x, y] = this._uv(e);
+      if (this.mode === 'drop') {
+        const dx = x - this._pointer.lastDropX, dy = y - this._pointer.lastDropY;
+        if (dx * dx + dy * dy > CONFIG.DROP_MOVE_GAP * CONFIG.DROP_MOVE_GAP) {
+          this._drop(x, y);
+          this._pointer.lastDropX = x; this._pointer.lastDropY = y;
+        }
+      }
+      // blow / tilt 的 move 行為於 Task 3 加入
+      this._pointer.x = x; this._pointer.y = y;
+    };
+    this._onUp = () => { this._pointer.down = false; };
+
+    c.addEventListener('pointerdown', this._onDown);
+    c.addEventListener('pointermove', this._onMove);
+    c.addEventListener('pointerup', this._onUp);
+    c.addEventListener('pointercancel', this._onUp);
+
+    let t = 0;
+    this._ro = new ResizeObserver(() => {
+      clearTimeout(t);
+      t = setTimeout(() => this._resize(), 200);
+    });
+    this._ro.observe(c);
+  }
+
+  _unbindEvents() {
+    const c = this.canvas;
+    c.removeEventListener('pointerdown', this._onDown);
+    c.removeEventListener('pointermove', this._onMove);
+    c.removeEventListener('pointerup', this._onUp);
+    c.removeEventListener('pointercancel', this._onUp);
+    this._ro.disconnect();
+  }
+
+  // ---- 內部：模擬 ----
+
+  _run(mat, target) {
+    this.mesh.material = mat;
+    this.renderer.setRenderTarget(target);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  _splatVelocity(x, y, fx, fy, radius, radial = false) {
+    const u = this.mats.splat.uniforms;
+    u.uTarget.value = this.velocity.read.texture;
+    u.uAspect.value = this._aspect;
+    u.uPoint.value.set(x, y);
+    u.uValue.value.set(fx, fy, 0);
+    u.uRadius.value = radius;
+    u.uRadial.value = radial ? 1 : 0;
+    this._run(this.mats.splat, this.velocity.write);
+    this.velocity.swap();
+  }
+
+  _splatDye(x, y, rgb, radius) {
+    const u = this.mats.splat.uniforms;
+    u.uTarget.value = this.dye.read.texture;
+    u.uAspect.value = this._aspect;
+    u.uPoint.value.set(x, y);
+    u.uValue.value.set(rgb[0], rgb[1], rgb[2]);
+    u.uRadius.value = radius;
+    u.uRadial.value = 0;
+    this._run(this.mats.splat, this.dye.write);
+    this.dye.swap();
+  }
+
+  _drop(x, y) {
+    const c = this.color;
+    this._splatDye(x, y, [c.r * 0.85, c.g * 0.85, c.b * 0.85], CONFIG.DROP_RADIUS);
+    this._splatVelocity(x, y, CONFIG.DROP_PULSE, 0, CONFIG.DROP_RADIUS * 0.9, true);
+  }
+
+  _step(dt) {
+    const m = this.mats;
+
+    // 傾斜全域力 pass 於 Task 3 加入（this.gravity）
+
+    m.curl.uniforms.uVelocity.value = this.velocity.read.texture;
+    m.curl.uniforms.uTexelSize.value.copy(this._simTexel);
+    this._run(m.curl, this.curlRT);
+
+    m.vorticity.uniforms.uVelocity.value = this.velocity.read.texture;
+    m.vorticity.uniforms.uCurl.value = this.curlRT.texture;
+    m.vorticity.uniforms.uTexelSize.value.copy(this._simTexel);
+    m.vorticity.uniforms.uDt.value = dt;
+    this._run(m.vorticity, this.velocity.write);
+    this.velocity.swap();
+
+    m.divergence.uniforms.uVelocity.value = this.velocity.read.texture;
+    m.divergence.uniforms.uTexelSize.value.copy(this._simTexel);
+    this._run(m.divergence, this.divergenceRT);
+
+    m.clear.uniforms.uTexture.value = this.pressure.read.texture;
+    m.clear.uniforms.uValue.value = 0.8;
+    this._run(m.clear, this.pressure.write);
+    this.pressure.swap();
+
+    m.pressure.uniforms.uDivergence.value = this.divergenceRT.texture;
+    m.pressure.uniforms.uTexelSize.value.copy(this._simTexel);
+    for (let i = 0; i < CONFIG.PRESSURE_ITERATIONS; i++) {
+      m.pressure.uniforms.uPressure.value = this.pressure.read.texture;
+      this._run(m.pressure, this.pressure.write);
+      this.pressure.swap();
+    }
+
+    m.gradient.uniforms.uPressure.value = this.pressure.read.texture;
+    m.gradient.uniforms.uVelocity.value = this.velocity.read.texture;
+    m.gradient.uniforms.uTexelSize.value.copy(this._simTexel);
+    this._run(m.gradient, this.velocity.write);
+    this.velocity.swap();
+
+    m.advection.uniforms.uVelocity.value = this.velocity.read.texture;
+    m.advection.uniforms.uSource.value = this.velocity.read.texture;
+    m.advection.uniforms.uTexelSize.value.copy(this._simTexel);
+    m.advection.uniforms.uDt.value = dt;
+    m.advection.uniforms.uDissipation.value = CONFIG.VELOCITY_DISSIPATION;
+    this._run(m.advection, this.velocity.write);
+    this.velocity.swap();
+
+    m.advection.uniforms.uVelocity.value = this.velocity.read.texture;
+    m.advection.uniforms.uSource.value = this.dye.read.texture;
+    m.advection.uniforms.uDissipation.value = CONFIG.DYE_DISSIPATION;
+    this._run(m.advection, this.dye.write);
+    this.dye.swap();
+  }
+
+  _render() {
+    this.mats.display.uniforms.uDye.value = this.dye.read.texture;
+    this._run(this.mats.display, null);
+  }
+
+  _loop() {
+    this._raf = requestAnimationFrame(this._loopBound);
+    const now = performance.now();
+    let dt = (now - this._lastTime) / 1000;
+    this._lastTime = now;
+    dt = Math.min(dt, 1 / 30);
+    this._step(dt);
+    this._render();
+  }
+}
