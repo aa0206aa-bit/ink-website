@@ -175,6 +175,18 @@ void main() {
 }
 `;
 
+// 全域外力（傾斜流動）：對整片速度場加同向力
+const FORCE_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform sampler2D uVelocity;
+uniform vec2 uForce;
+uniform float uDt;
+void main() {
+  vec2 vel = texture2D(uVelocity, vUv).xy + uForce * uDt;
+  gl_FragColor = vec4(vel, 0.0, 1.0);
+}
+`;
+
 // 染料場 → 螢幕：深底加色（發光感）＋微 dither 防色帶
 const DISPLAY_FRAG = /* glsl */ `
 varying vec2 vUv;
@@ -229,7 +241,7 @@ export class InkSimulation {
     this.paused = false;
     this._raf = 0;
     this._lastTime = performance.now();
-    this._pointer = { down: false, x: 0, y: 0, lastDropX: -10, lastDropY: -10 };
+    this._pointer = { down: false, x: 0, y: 0, lastDropX: -10, lastDropY: -10, tiltStartX: 0, tiltStartY: 0 };
     this._w = 0; this._h = 0;
 
     const isCoarse = matchMedia('(pointer: coarse)').matches;
@@ -326,6 +338,9 @@ export class InkSimulation {
         uCurlStrength: { value: CONFIG.CURL_STRENGTH }, uDt: { value: 0 },
       }),
       clear: this._mat(CLEAR_FRAG, { uTexture: { value: null }, uValue: { value: 0.8 } }),
+      force: this._mat(FORCE_FRAG, {
+        uVelocity: { value: null }, uForce: { value: new THREE.Vector2() }, uDt: { value: 0 },
+      }),
       display: this._mat(DISPLAY_FRAG, {
         uDye: { value: null },
         uBackground: { value: new THREE.Vector3(...CONFIG.BG_COLOR) },
@@ -393,20 +408,35 @@ export class InkSimulation {
       if (this.mode === 'drop') {
         this._drop(x, y);
         this._pointer.lastDropX = x; this._pointer.lastDropY = y;
+      } else if (this.mode === 'tilt') {
+        this._pointer.tiltStartX = x; this._pointer.tiltStartY = y;
       }
-      // blow / tilt 的 down 行為於 Task 3 加入
     };
     this._onMove = (e) => {
       if (!this._pointer.down) return;
       const [x, y] = this._uv(e);
+      const dx = x - this._pointer.x, dy = y - this._pointer.y;
       if (this.mode === 'drop') {
-        const dx = x - this._pointer.lastDropX, dy = y - this._pointer.lastDropY;
-        if (dx * dx + dy * dy > CONFIG.DROP_MOVE_GAP * CONFIG.DROP_MOVE_GAP) {
+        const gx = x - this._pointer.lastDropX, gy = y - this._pointer.lastDropY;
+        if (gx * gx + gy * gy > CONFIG.DROP_MOVE_GAP * CONFIG.DROP_MOVE_GAP) {
           this._drop(x, y);
           this._pointer.lastDropX = x; this._pointer.lastDropY = y;
         }
+      } else if (this.mode === 'blow') {
+        // 吹墨：沿移動方向注入細窄強推力，不注入染料（推的是既有的墨）
+        this._splatVelocity(x, y, dx * CONFIG.BLOW_FORCE, dy * CONFIG.BLOW_FORCE, CONFIG.BLOW_RADIUS);
+      } else if (this.mode === 'tilt') {
+        // 傾斜：拖曳向量 → 全域力；拖滿半個畫布寬 = 最大力
+        const tx = x - this._pointer.tiltStartX, ty = y - this._pointer.tiltStartY;
+        const len = Math.hypot(tx, ty);
+        if (len > 0.001) {
+          const strength = Math.min(len, 0.5) / 0.5;
+          this.gravity.set(
+            (tx / len) * CONFIG.TILT_FORCE * strength,
+            (ty / len) * CONFIG.TILT_FORCE * strength
+          );
+        }
       }
-      // blow / tilt 的 move 行為於 Task 3 加入
       this._pointer.x = x; this._pointer.y = y;
     };
     this._onUp = () => { this._pointer.down = false; };
@@ -415,6 +445,13 @@ export class InkSimulation {
     c.addEventListener('pointermove', this._onMove);
     c.addEventListener('pointerup', this._onUp);
     c.addEventListener('pointercancel', this._onUp);
+
+    // 手機切換 app 等情境會弄丟 GL context；Three.js 會自行重建 GL 狀態，
+    // 但紋理內容已失，clear() 讓模擬回到一致的空白狀態
+    this._onCtxLost = (e) => { e.preventDefault(); this.pause(); };
+    this._onCtxRestored = () => { this.clear(); this.resume(); };
+    c.addEventListener('webglcontextlost', this._onCtxLost);
+    c.addEventListener('webglcontextrestored', this._onCtxRestored);
 
     let t = 0;
     this._ro = new ResizeObserver(() => {
@@ -430,6 +467,8 @@ export class InkSimulation {
     c.removeEventListener('pointermove', this._onMove);
     c.removeEventListener('pointerup', this._onUp);
     c.removeEventListener('pointercancel', this._onUp);
+    c.removeEventListener('webglcontextlost', this._onCtxLost);
+    c.removeEventListener('webglcontextrestored', this._onCtxRestored);
     this._ro.disconnect();
   }
 
@@ -474,7 +513,17 @@ export class InkSimulation {
   _step(dt) {
     const m = this.mats;
 
-    // 傾斜全域力 pass 於 Task 3 加入（this.gravity）
+    if (this.gravity.lengthSq() > 0.25) {
+      const f = m.force.uniforms;
+      f.uVelocity.value = this.velocity.read.texture;
+      f.uForce.value.copy(this.gravity);
+      f.uDt.value = dt;
+      this._run(m.force, this.velocity.write);
+      this.velocity.swap();
+      if (!this._pointer.down) this.gravity.multiplyScalar(CONFIG.TILT_DECAY);
+    } else if (this.gravity.lengthSq() > 0) {
+      this.gravity.set(0, 0);
+    }
 
     m.curl.uniforms.uVelocity.value = this.velocity.read.texture;
     m.curl.uniforms.uTexelSize.value.copy(this._simTexel);
