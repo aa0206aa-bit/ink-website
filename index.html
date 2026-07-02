@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>序序 XuXu｜流動墨</title>
 <meta name="description" content="序序・藝術流動墨。在這裡親手感受滴墨、吹墨、傾斜流動的墨水技法，找到屬於你的那一色。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='54' r='34' fill='%230f6b63'/%3E%3Ccircle cx='64' cy='42' r='18' fill='%239a7b1e' opacity='.85'/%3E%3C/svg%3E">
+<meta property="og:title" content="序序 XuXu｜流動墨">
+<meta property="og:description" content="親手感受滴墨、吹墨、傾斜流動的墨水技法，找到屬於你的那一色。">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&display=swap" rel="stylesheet">
@@ -237,6 +241,29 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
     radial-gradient(ellipse 40% 35% at 80% 25%, rgba(15, 107, 99, .28), transparent 68%),
     #f1ecdf;
 }
+
+/* ===== 關於／Footer ===== */
+.about { text-align: center; }
+.about .section-title { margin-bottom: 32px; }
+.about-text { font-family: var(--serif); color: var(--text-dim); font-size: 16px; line-height: 2.4; letter-spacing: 2px; }
+.footer { border-top: 1px solid rgba(42, 39, 35, .08); padding: 40px 24px; text-align: center; }
+.footer-links { display: flex; gap: 28px; justify-content: center; margin-bottom: 16px; }
+.footer-links a { color: var(--text-dim); font-size: 13px; letter-spacing: 2px; }
+.footer-links a:hover { color: var(--gold); }
+.footer-copy { color: var(--text-faint); font-size: 11px; letter-spacing: 2px; }
+
+/* ===== RWD ===== */
+@media (max-width: 720px) {
+  section { padding: 64px 18px; }
+  .nav { padding: 14px 18px; }
+  .nav-links { gap: 16px; font-size: 12px; letter-spacing: 2px; }
+  .hero { min-height: 64vh; }
+  #inkCanvas { height: 340px; }
+  .toolbar { gap: 10px; }
+  .mode-hint { order: 3; flex-basis: 100%; min-width: 0; }
+  .art-wall { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }
+  .art-4 { grid-column: span 2; }
+}
 </style>
 </head>
 <body>
@@ -311,9 +338,25 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   </div>
 </section>
 
-<section id="about"><!-- Task 8: 關於序序 --></section>
+<section id="about" class="about">
+  <h2 class="section-title">關於序序</h2>
+  <!-- 佔位文案：品牌故事日後由決策者替換 -->
+  <p class="about-text">
+    每一滴墨落下，都是一次無法重來的序章。<br>
+    序序是一間小小的流動墨工作室——我們調墨、試色、等墨乾，<br>
+    然後把最耐看的那幾色，小量裝瓶，交到你手上。
+  </p>
+</section>
 
-<footer><!-- Task 8: Footer --></footer>
+<footer class="footer">
+  <div class="footer-links">
+    <!-- 佔位連結：日後換成真實社群／賣場網址 -->
+    <a href="#" target="_blank" rel="noopener">Instagram</a>
+    <a href="#" target="_blank" rel="noopener">蝦皮賣場</a>
+    <a href="#" target="_blank" rel="noopener">聯絡我們</a>
+  </div>
+  <p class="footer-copy">© 2026 序序 XuXu</p>
+</footer>
 
 <script type="module">
 import { InkSimulation } from './fluid.js';
