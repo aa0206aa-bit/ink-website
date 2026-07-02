@@ -538,16 +538,15 @@ if (sim) {
     { t: 950, u: 0.50, v: 0.62, ink: 1 },
   ].forEach((k) => setTimeout(() => sim.splatAt(k.u, k.v, INKS[k.ink].hex), k.t));
 
-  // 閒置自動演出（spec §4.4）：閒置 6s 起自動滴墨＋偶爾補滴與輕水流，互動即重新計時
+  // 閒置自動演出（spec §4.4）：僅作開場演示——使用者第一次下筆後永久退場，畫布交還創作者
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const IDLE_MS = 6000;
   const PERFORM_GAP = reduced ? 7000 : 3500;
-  let lastActive = performance.now();
-  const markActive = () => { lastActive = performance.now(); };
-  canvas.addEventListener('pointerdown', markActive);
-  canvas.addEventListener('pointermove', markActive);
+  const loadedAt = performance.now();
+  let userHasDrawn = false;
+  canvas.addEventListener('pointerdown', () => { userHasDrawn = true; });
   setInterval(() => {
-    if (sim.paused || performance.now() - lastActive < IDLE_MS) return;
+    if (userHasDrawn || sim.paused || performance.now() - loadedAt < IDLE_MS) return;
     const u = 0.15 + Math.random() * 0.7;
     const v = 0.2 + Math.random() * 0.6;
     const idx = Math.floor(Math.random() * INKS.length);
