@@ -56,6 +56,53 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 .nav-links { display: flex; gap: 28px; font-size: 13px; letter-spacing: 3px; color: var(--text-dim); }
 .nav-links a:hover { color: var(--gold); }
 
+/* ===== Hero ===== */
+.hero {
+  position: relative; overflow: hidden;
+  min-height: 78vh;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+}
+.hero-blobs { position: absolute; inset: 0; }
+.blob { position: absolute; border-radius: 50%; filter: blur(10px); }
+.blob-1 {
+  width: 420px; height: 420px; top: -80px; left: 8%;
+  background: radial-gradient(circle at 40% 40%, rgba(15, 107, 99, .3), rgba(15, 107, 99, .06) 50%, transparent 72%);
+  animation: drift-1 52s ease-in-out infinite alternate;
+}
+.blob-2 {
+  width: 360px; height: 360px; bottom: -60px; right: 10%;
+  background: radial-gradient(circle at 55% 50%, rgba(143, 32, 80, .26), rgba(143, 32, 80, .05) 52%, transparent 74%);
+  animation: drift-2 64s ease-in-out infinite alternate;
+}
+.blob-3 {
+  width: 200px; height: 200px; bottom: 16%; right: 26%;
+  background: radial-gradient(circle, rgba(154, 123, 30, .24), transparent 66%);
+  animation: drift-3 47s ease-in-out infinite alternate;
+}
+@keyframes drift-1 { to { transform: translate(60px, 40px) scale(1.12); } }
+@keyframes drift-2 { to { transform: translate(-50px, -30px) scale(1.08); } }
+@keyframes drift-3 { to { transform: translate(-40px, 20px) scale(1.18); } }
+@media (prefers-reduced-motion: reduce) {
+  .blob { animation: none; }
+  html { scroll-behavior: auto; }
+}
+.hero-inner { position: relative; padding: 24px; }
+.hero-brand {
+  font-family: var(--serif); font-weight: 600;
+  font-size: clamp(56px, 10vw, 96px);
+  letter-spacing: .45em; text-indent: .45em; /* 寬字距置中補償 */
+}
+.hero-tagline { color: var(--text-dim); font-size: 15px; letter-spacing: 6px; margin-top: 18px; }
+.hero-cta {
+  display: inline-block; margin-top: 44px;
+  padding: 12px 32px;
+  border: 1px solid var(--gold-dim); color: var(--gold);
+  font-size: 13px; letter-spacing: 3px;
+  transition: background .3s;
+}
+.hero-cta:hover { background: rgba(138, 109, 31, .1); }
+
 /* ===== 體驗區 ===== */
 .studio {
   background: var(--panel);
@@ -120,7 +167,18 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   </div>
 </nav>
 
-<header id="top"><!-- Task 5: Hero --></header>
+<header id="top" class="hero">
+  <div class="hero-blobs" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+  <div class="hero-inner">
+    <h1 class="hero-brand">序序</h1>
+    <p class="hero-tagline">讓墨自己說話</p><!-- 佔位標語，日後可換 -->
+    <a class="hero-cta" href="#experience">親手玩一次墨 ↓</a>
+  </div>
+</header>
 
 <section id="experience">
   <h2 class="section-title">體驗</h2>
