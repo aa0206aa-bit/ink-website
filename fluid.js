@@ -10,7 +10,7 @@ import * as THREE from './three.module.min.js';
 const CONFIG = {
   SIM_RESOLUTION: 144,            // 速度／壓力場短邊格數
   DYE_RESOLUTION_DESKTOP: 1024,   // 染料場短邊（桌機）
-  DYE_RESOLUTION_MOBILE: 512,     // 染料場短邊（手機）
+  DYE_RESOLUTION_MOBILE: 768,     // 染料場短邊（手機；512 在滿版塗抹時塊狀感明顯）
   PRESSURE_ITERATIONS: 22,        // Jacobi 迭代次數
   CURL_STRENGTH: 24,              // 渦度增強（墨紋捲曲感）
   VELOCITY_DISSIPATION: 0.28,     // 速度消散（越大流動停得越快）
@@ -32,6 +32,7 @@ const CONFIG = {
   ABSORPTION_EPS: 0.012,          // 轉 absorption 時色值下限（防 log(0)）
   INK_STRENGTH: 2.2,              // 一滴墨的濃度係數（sRGB absorption 偏弱，以此補償）
   WHITE_ABSORPTION: -1.0,         // 雲白（留白墨）負吸收強度（有效值 = 此值 × INK_STRENGTH）
+  INK_SATURATION: 0.35,           // 紙張吸墨飽和係數（濃度 3 時新墨只染上 ~35%）
 };
 
 // ===== Shaders =====
@@ -54,6 +55,7 @@ uniform vec3 uValue;
 uniform vec2 uPoint;
 uniform float uRadius;
 uniform float uRadial;
+uniform float uSaturation;
 void main() {
   vec2 p = vUv - uPoint;
   p.x *= uAspect;
@@ -64,6 +66,9 @@ void main() {
     vec2 dir = (length(p) > 0.0001) ? normalize(p) : vec2(0.0);
     add = vec3(dir * uValue.x, 0.0);
   }
+  // 紙張吸墨飽和：既有濃度越高、新墨越難染上（防滿版疊墨成死黑硬塊）
+  // 染料 splat 時 uSaturation > 0；速度 splat 恆為 0（exp(0)=1 不影響）
+  add *= exp(-abs(base) * uSaturation);
   gl_FragColor = vec4(base + add * fall, 1.0);
 }
 `;
@@ -423,7 +428,7 @@ export class InkSimulation {
       splat: this._mat(SPLAT_FRAG, {
         uTarget: { value: null }, uAspect: { value: 1 },
         uValue: { value: new THREE.Vector3() }, uPoint: { value: new THREE.Vector2() },
-        uRadius: { value: 0.001 }, uRadial: { value: 0 },
+        uRadius: { value: 0.001 }, uRadial: { value: 0 }, uSaturation: { value: 0 },
       }),
       advection: this._mat(ADVECTION_FRAG, {
         uVelocity: { value: null }, uSource: { value: null }, uTexelSize: v2(),
@@ -616,6 +621,7 @@ export class InkSimulation {
     u.uValue.value.set(fx, fy, 0);
     u.uRadius.value = radius;
     u.uRadial.value = radial ? 1 : 0;
+    u.uSaturation.value = 0; // 速度場不飽和
     this._run(this.mats.splat, this.velocity.write);
     this.velocity.swap();
   }
@@ -628,6 +634,7 @@ export class InkSimulation {
     u.uValue.value.set(rgb[0], rgb[1], rgb[2]);
     u.uRadius.value = radius;
     u.uRadial.value = 0;
+    u.uSaturation.value = CONFIG.INK_SATURATION; // 紙張吸墨飽和
     this._run(this.mats.splat, this.dye.write);
     this.dye.swap();
   }
