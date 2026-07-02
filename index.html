@@ -55,6 +55,57 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 .nav-brand { font-family: var(--serif); font-size: 18px; letter-spacing: 8px; }
 .nav-links { display: flex; gap: 28px; font-size: 13px; letter-spacing: 3px; color: var(--text-dim); }
 .nav-links a:hover { color: var(--gold); }
+
+/* ===== 體驗區 ===== */
+.studio {
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 6px;
+  padding: 20px;
+}
+.toolbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.modes { display: flex; gap: 8px; }
+.mode-btn, .clear-btn {
+  font-family: var(--sans); font-size: 13px; letter-spacing: 2px;
+  padding: 8px 18px; cursor: pointer;
+  background: transparent; color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, .18); border-radius: 3px;
+  transition: color .25s, border-color .25s, background .25s;
+}
+.mode-btn:hover, .clear-btn:hover { color: var(--text); border-color: rgba(255, 255, 255, .4); }
+.mode-btn.active { color: var(--gold); border-color: var(--gold-dim); background: rgba(212, 175, 55, .08); }
+.mode-hint { font-size: 12px; color: var(--text-faint); letter-spacing: 1px; flex: 1; min-width: 200px; }
+.canvas-wrap { position: relative; }
+#inkCanvas {
+  width: 100%; height: 460px; display: block;
+  border-radius: 4px; background: #16161c;
+  touch-action: none; cursor: crosshair;
+}
+.fallback {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; color: var(--text-dim); font-size: 14px; line-height: 2;
+}
+.fallback-blob {
+  width: 180px; height: 180px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 40% 40%, rgba(0, 180, 170, .5), transparent 70%),
+    radial-gradient(circle at 65% 60%, rgba(200, 40, 120, .4), transparent 70%);
+  filter: blur(4px);
+  margin-bottom: 20px;
+}
+.palette-row { display: flex; align-items: center; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+.palette { display: flex; gap: 12px; }
+.swatch {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer; padding: 0;
+  transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch.active { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212, 175, 55, .2); }
+.palette-label { font-size: 12px; color: var(--text-faint); }
+.palette-label a { color: var(--text-dim); border-bottom: 1px dotted var(--text-faint); }
+.palette-label a:hover { color: var(--gold); }
 </style>
 </head>
 <body>
@@ -71,7 +122,32 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 
 <header id="top"><!-- Task 5: Hero --></header>
 
-<section id="experience"><!-- Task 4: 互動體驗區 --></section>
+<section id="experience">
+  <h2 class="section-title">體驗</h2>
+  <p class="section-sub">選一種技法、選一色墨，在這裡親手感受流動墨的脾氣。</p>
+  <div class="studio">
+    <div class="toolbar">
+      <div class="modes" role="group" aria-label="技法選擇">
+        <button class="mode-btn active" data-mode="drop" aria-pressed="true">滴墨</button>
+        <button class="mode-btn" data-mode="blow" aria-pressed="false">吹墨</button>
+        <button class="mode-btn" data-mode="tilt" aria-pressed="false">傾斜</button>
+      </div>
+      <p class="mode-hint" id="modeHint">輕點畫布，看墨滴落、暈開</p>
+      <button class="clear-btn" id="clearBtn">清 ↺</button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="inkCanvas"></canvas>
+      <div class="fallback" id="webglFallback" hidden>
+        <div class="fallback-blob"></div>
+        <p>你的瀏覽器不支援互動墨水體驗。<br>往下看看墨色與作品吧。</p>
+      </div>
+    </div>
+    <div class="palette-row">
+      <div class="palette" id="palette" role="group" aria-label="墨色選擇"></div>
+      <p class="palette-label" id="paletteLabel"></p>
+    </div>
+  </div>
+</section>
 
 <section id="inks"><!-- Task 6: 墨色產品區 --></section>
 
@@ -82,9 +158,90 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 <footer><!-- Task 8: Footer --></footer>
 
 <script type="module">
-import * as THREE from './three.module.min.js';
-import { FLUID_VERSION } from './fluid.js';
-console.log('[ink] three r' + THREE.REVISION + ' / fluid ' + FLUID_VERSION);
+import { InkSimulation } from './fluid.js';
+
+// ===== 產品資料：單一事實來源（色盤＋產品卡都由此渲染；改連結/色號只改這裡）=====
+const INKS = [
+  { no: '01', name: '初潮', hex: '#00b4aa', buyUrl: '#' },
+  { no: '02', name: '夜枝', hex: '#c82878', buyUrl: '#' },
+  { no: '03', name: '鎏金', hex: '#d4af37', buyUrl: '#' },
+  { no: '04', name: '靜淵', hex: '#3c64dc', buyUrl: '#' },
+];
+
+const MODE_HINTS = {
+  drop: '輕點畫布，看墨滴落、暈開',
+  blow: '先滴幾滴墨，按住拖曳，氣流會推出觸鬚紋路',
+  tilt: '按住往一個方向拖，整片墨會隨傾斜流動',
+};
+
+// ---- 互動體驗區 ----
+const canvas = document.getElementById('inkCanvas');
+const fallbackEl = document.getElementById('webglFallback');
+let sim = null;
+try {
+  sim = new InkSimulation(canvas);
+} catch (err) {
+  canvas.hidden = true;
+  fallbackEl.hidden = false;
+  console.warn('[ink] WebGL 不可用，顯示靜態替代', err);
+}
+window.__inkSim = sim; // 調試用
+
+if (sim) {
+  const modeBtns = document.querySelectorAll('.mode-btn');
+  const hintEl = document.getElementById('modeHint');
+  modeBtns.forEach((btn) => btn.addEventListener('click', () => {
+    modeBtns.forEach((b) => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    sim.setMode(btn.dataset.mode);
+    hintEl.textContent = MODE_HINTS[btn.dataset.mode];
+  }));
+
+  const palette = document.getElementById('palette');
+  const paletteLabel = document.getElementById('paletteLabel');
+  const setLabel = (ink) => {
+    paletteLabel.innerHTML = `當前墨色：<a href="#inks">${ink.name} №${ink.no} ↓</a>`;
+  };
+  INKS.forEach((ink, idx) => {
+    const b = document.createElement('button');
+    b.className = 'swatch' + (idx === 0 ? ' active' : '');
+    b.style.background = `radial-gradient(circle at 35% 35%, ${ink.hex}, ${ink.hex}cc)`;
+    b.title = `${ink.name} №${ink.no}`;
+    b.setAttribute('aria-label', `選擇墨色 ${ink.name}`);
+    b.addEventListener('click', () => {
+      palette.querySelectorAll('.swatch').forEach((s) => s.classList.remove('active'));
+      b.classList.add('active');
+      sim.setColor(ink.hex);
+      setLabel(ink);
+    });
+    palette.appendChild(b);
+  });
+  sim.setColor(INKS[0].hex);
+  setLabel(INKS[0]);
+
+  // 清除：先淡出再清空再淡回（spec §10「畫布淡出清空」）
+  const clearBtn = document.getElementById('clearBtn');
+  clearBtn.addEventListener('click', () => {
+    canvas.style.transition = 'opacity .25s';
+    canvas.style.opacity = '0';
+    setTimeout(() => { sim.clear(); canvas.style.opacity = '1'; }, 260);
+  });
+
+  // 效能：畫布在視口外或分頁切到背景 → 暫停模擬
+  let inView = true;
+  let visible = !document.hidden;
+  const syncRun = () => { (inView && visible) ? sim.resume() : sim.pause(); };
+  new IntersectionObserver((entries) => {
+    inView = entries[0].isIntersecting;
+    syncRun();
+  }, { threshold: 0.05 }).observe(canvas);
+  document.addEventListener('visibilitychange', () => {
+    visible = !document.hidden;
+    syncRun();
+  });
+}
 </script>
 </body>
 </html>
