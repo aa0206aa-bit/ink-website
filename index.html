@@ -9,15 +9,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&display=swap" rel="stylesheet">
 <style>
-/* ===== 設計 tokens（spec §5.1 墨夜畫廊）===== */
+/* ===== 設計 tokens（spec §5.1 和紙晝色）===== */
 :root {
-  --bg: #0d0d11;
-  --panel: #16161c;
-  --text: #f5f2ea;
-  --text-dim: rgba(245, 242, 234, .55);
-  --text-faint: rgba(245, 242, 234, .35);
-  --gold: #d4af37;
-  --gold-dim: rgba(212, 175, 55, .55);
+  --bg: #efeae0;
+  --panel: #f7f3ea;
+  --text: #2a2723;
+  --text-dim: rgba(42, 39, 35, .62);
+  --text-faint: rgba(42, 39, 35, .4);
+  --gold: #8a6d1f;
+  --gold-dim: rgba(138, 109, 31, .55);
   --serif: "Noto Serif TC", "Songti TC", Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
   --maxw: 1080px;
@@ -47,10 +47,10 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   position: sticky; top: 0; z-index: 100;
   display: flex; justify-content: space-between; align-items: center;
   padding: 16px 32px;
-  background: rgba(13, 13, 17, .72);
+  background: rgba(239, 234, 224, .8);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  border-bottom: 1px solid rgba(42, 39, 35, .08);
 }
 .nav-brand { font-family: var(--serif); font-size: 18px; letter-spacing: 8px; }
 .nav-links { display: flex; gap: 28px; font-size: 13px; letter-spacing: 3px; color: var(--text-dim); }
@@ -59,7 +59,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 /* ===== 體驗區 ===== */
 .studio {
   background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, .06);
+  border: 1px solid rgba(42, 39, 35, .08);
   border-radius: 6px;
   padding: 20px;
 }
@@ -69,16 +69,16 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   font-family: var(--sans); font-size: 13px; letter-spacing: 2px;
   padding: 8px 18px; cursor: pointer;
   background: transparent; color: var(--text-dim);
-  border: 1px solid rgba(255, 255, 255, .18); border-radius: 3px;
+  border: 1px solid rgba(42, 39, 35, .25); border-radius: 3px;
   transition: color .25s, border-color .25s, background .25s;
 }
-.mode-btn:hover, .clear-btn:hover { color: var(--text); border-color: rgba(255, 255, 255, .4); }
-.mode-btn.active { color: var(--gold); border-color: var(--gold-dim); background: rgba(212, 175, 55, .08); }
+.mode-btn:hover, .clear-btn:hover { color: var(--text); border-color: rgba(42, 39, 35, .5); }
+.mode-btn.active { color: var(--gold); border-color: var(--gold-dim); background: rgba(138, 109, 31, .08); }
 .mode-hint { font-size: 12px; color: var(--text-faint); letter-spacing: 1px; flex: 1; min-width: 200px; }
 .canvas-wrap { position: relative; }
 #inkCanvas {
   width: 100%; height: 460px; display: block;
-  border-radius: 4px; background: #16161c;
+  border-radius: 4px; background: #efeae0;
   touch-action: none; cursor: crosshair;
 }
 .fallback {
@@ -89,8 +89,8 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 .fallback-blob {
   width: 180px; height: 180px; border-radius: 50%;
   background:
-    radial-gradient(circle at 40% 40%, rgba(0, 180, 170, .5), transparent 70%),
-    radial-gradient(circle at 65% 60%, rgba(200, 40, 120, .4), transparent 70%);
+    radial-gradient(circle at 40% 40%, rgba(15, 107, 99, .38), transparent 70%),
+    radial-gradient(circle at 65% 60%, rgba(143, 32, 80, .32), transparent 70%);
   filter: blur(4px);
   margin-bottom: 20px;
 }
@@ -102,7 +102,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   transition: transform .2s, border-color .2s, box-shadow .2s;
 }
 .swatch:hover { transform: scale(1.12); }
-.swatch.active { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212, 175, 55, .2); }
+.swatch.active { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(138, 109, 31, .2); }
 .palette-label { font-size: 12px; color: var(--text-faint); }
 .palette-label a { color: var(--text-dim); border-bottom: 1px dotted var(--text-faint); }
 .palette-label a:hover { color: var(--gold); }
@@ -162,10 +162,10 @@ import { InkSimulation } from './fluid.js';
 
 // ===== 產品資料：單一事實來源（色盤＋產品卡都由此渲染；改連結/色號只改這裡）=====
 const INKS = [
-  { no: '01', name: '初潮', hex: '#00b4aa', buyUrl: '#' },
-  { no: '02', name: '夜枝', hex: '#c82878', buyUrl: '#' },
-  { no: '03', name: '鎏金', hex: '#d4af37', buyUrl: '#' },
-  { no: '04', name: '靜淵', hex: '#3c64dc', buyUrl: '#' },
+  { no: '01', name: '初潮', hex: '#0f6b63', buyUrl: '#' },
+  { no: '02', name: '夜枝', hex: '#8f2050', buyUrl: '#' },
+  { no: '03', name: '鎏金', hex: '#9a7b1e', buyUrl: '#' },
+  { no: '04', name: '靜淵', hex: '#24418f', buyUrl: '#' },
 ];
 
 const MODE_HINTS = {
@@ -221,13 +221,43 @@ if (sim) {
   sim.setColor(INKS[0].hex);
   setLabel(INKS[0]);
 
-  // 清除：先淡出再清空再淡回（spec §10「畫布淡出清空」）
+  // 清除：引擎內洗い流す漸淡（~1.5s 墨被水洗走，spec §4.2）
   const clearBtn = document.getElementById('clearBtn');
-  clearBtn.addEventListener('click', () => {
-    canvas.style.transition = 'opacity .25s';
-    canvas.style.opacity = '0';
-    setTimeout(() => { sim.clear(); canvas.style.opacity = '1'; }, 260);
-  });
+  clearBtn.addEventListener('click', () => sim.clear());
+
+  // 載入初始滴墨：首屏即有畫面（spec §4.4）
+  [
+    { t: 0,   u: 0.38, v: 0.58, ink: 0 },
+    { t: 450, u: 0.62, v: 0.42, ink: 3 },
+    { t: 950, u: 0.50, v: 0.62, ink: 1 },
+  ].forEach((k) => setTimeout(() => sim.splatAt(k.u, k.v, INKS[k.ink].hex), k.t));
+
+  // 閒置自動演出（spec §4.4）：閒置 6s 起自動滴墨＋偶爾補滴與輕水流，互動即重新計時
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const IDLE_MS = 6000;
+  const PERFORM_GAP = reduced ? 7000 : 3500;
+  let lastActive = performance.now();
+  const markActive = () => { lastActive = performance.now(); };
+  canvas.addEventListener('pointerdown', markActive);
+  canvas.addEventListener('pointermove', markActive);
+  setInterval(() => {
+    if (sim.paused || performance.now() - lastActive < IDLE_MS) return;
+    const u = 0.15 + Math.random() * 0.7;
+    const v = 0.2 + Math.random() * 0.6;
+    const idx = Math.floor(Math.random() * INKS.length);
+    sim.splatAt(u, v, INKS[idx].hex);
+    if (Math.random() < 0.3) {
+      const other = INKS[(idx + 1 + Math.floor(Math.random() * (INKS.length - 1))) % INKS.length];
+      setTimeout(() => sim.splatAt(
+        Math.min(0.95, Math.max(0.05, u + (Math.random() - 0.5) * 0.12)),
+        Math.min(0.95, Math.max(0.05, v + (Math.random() - 0.5) * 0.12)),
+        other.hex,
+      ), 500);
+    }
+    if (!reduced && Math.random() < 0.5) {
+      sim.stir(Math.random(), Math.random(), (Math.random() - 0.5) * 900, (Math.random() - 0.5) * 900);
+    }
+  }, PERFORM_GAP);
 
   // 效能：畫布在視口外或分頁切到背景 → 暫停模擬
   let inView = true;

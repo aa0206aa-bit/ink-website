@@ -1,7 +1,8 @@
 // fluid.js — 序序流體引擎
 // Stable fluids on GPU（Three.js 0.184.0 / WebGL2 / ShaderMaterial GLSL1 語法）
-// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / clear / pause / resume / destroy
-// 本檔 Task 2 實作 drop（滴墨）；blow（吹墨）、tilt（傾斜）於 Task 3 補上
+// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / clear / splatAt / stir / pause / resume / destroy
+// 減法混色：dye field 存 absorption（吸收）向量，顯示 paper * exp(-absorption)（Beer-Lambert）
+// clear() 為洗い流す式漸淡（約 1.5 秒），非瞬間清空
 
 import * as THREE from './three.module.min.js';
 
@@ -21,7 +22,10 @@ const CONFIG = {
   BLOW_RADIUS: 0.0007,            // 吹墨作用半徑（細→觸鬚）（Task 3）
   TILT_FORCE: 230,                // 傾斜全域力（Task 3）
   TILT_DECAY: 0.97,               // 鬆手後每幀衰減（Task 3）
-  BG_COLOR: [0.086, 0.086, 0.11], // 畫布底色 #16161c
+  PAPER_COLOR: [0.937, 0.918, 0.878], // 和紙米色 #efeae0（顯示用紙底）
+  WASH_FRAMES: 90,                // 洗い流す持續幀數（~1.5s @60fps）
+  WASH_DECAY: 0.94,               // 洗墨時每幀 dye 乘法衰減
+  ABSORPTION_EPS: 0.012,          // 轉 absorption 時色值下限（防 log(0)）
 };
 
 // ===== Shaders =====
@@ -187,15 +191,24 @@ void main() {
 }
 `;
 
-// 染料場 → 螢幕：深底加色（發光感）＋微 dither 防色帶
+// 染料場 → 螢幕：減法混色（dye＝absorption，墨沉入紙）＋和紙纖維＋vignette＋dither
 const DISPLAY_FRAG = /* glsl */ `
 varying vec2 vUv;
 uniform sampler2D uDye;
-uniform vec3 uBackground;
+uniform vec3 uPaper;
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
 void main() {
-  vec3 dye = texture2D(uDye, vUv).rgb;
-  vec3 color = uBackground + dye;
-  float n = fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453);
+  vec3 absorption = texture2D(uDye, vUv).rgb;
+  vec3 color = uPaper * exp(-absorption);
+  // 和紙纖維：高／中／低三頻 noise 微擾，避免平滑塑膠感
+  float fiber = hash(vUv * 720.0) * 0.5 + hash(vUv * 190.0) * 0.3 + hash(vUv * 47.0) * 0.2;
+  color *= 1.0 + (fiber - 0.5) * 0.045;
+  // 淡 vignette：角落約 11%、邊緣中點約 5% 變暗
+  vec2 d = vUv - 0.5;
+  color *= 1.0 - dot(d, d) * 0.22;
+  float n = hash(vUv * 913.0);
   color += (n - 0.5) / 255.0;
   gl_FragColor = vec4(color, 1.0);
 }
@@ -236,11 +249,14 @@ export class InkSimulation {
     this.scene.add(this.mesh);
 
     this.mode = 'drop';
-    this.color = new THREE.Color('#00b4aa');
+    this.color = new THREE.Color('#0f6b63');
+    this._absorption = new THREE.Vector3();
+    this._toAbsorption(this.color, this._absorption);
     this.gravity = new THREE.Vector2(0, 0);
     this.paused = false;
     this._raf = 0;
     this._lastTime = performance.now();
+    this._washFrames = 0;
     this._pointer = { down: false, x: 0, y: 0, lastDropX: -10, lastDropY: -10, tiltStartX: 0, tiltStartY: 0 };
     this._w = 0; this._h = 0;
 
@@ -258,16 +274,19 @@ export class InkSimulation {
 
   // ---- 公開介面 ----
 
-  setColor(hex) { this.color.set(hex); }
+  setColor(hex) {
+    this.color.set(hex);
+    this._toAbsorption(this.color, this._absorption);
+  }
 
   setMode(mode) {
     if (mode === 'drop' || mode === 'blow' || mode === 'tilt') this.mode = mode;
   }
 
+  // 洗い流す：速度／壓力立即歸零，墨於 _step 中連續衰減漸淡（~1.5s）
   clear() {
     const r = this.renderer;
     const targets = [
-      this.dye.read, this.dye.write,
       this.velocity.read, this.velocity.write,
       this.pressure.read, this.pressure.write,
     ];
@@ -277,6 +296,22 @@ export class InkSimulation {
     }
     r.setRenderTarget(null);
     this.gravity.set(0, 0);
+    this._washFrames = CONFIG.WASH_FRAMES;
+  }
+
+  // 程式化滴墨（自動演出／初始動畫用）。u,v 為 0–1 畫布座標（v 向上），hex 省略用當前墨色
+  splatAt(u, v, hex) {
+    let a = this._absorption;
+    if (hex) {
+      a = this._toAbsorption(new THREE.Color(hex), new THREE.Vector3());
+    }
+    this._splatDye(u, v, [a.x * 0.85, a.y * 0.85, a.z * 0.85], CONFIG.DROP_RADIUS);
+    this._splatVelocity(u, v, CONFIG.DROP_PULSE, 0, CONFIG.DROP_RADIUS * 0.9, true);
+  }
+
+  // 程式化輕水流（自動演出用）：在 u,v 注入方向性速度
+  stir(u, v, fx, fy) {
+    this._splatVelocity(u, v, fx, fy, CONFIG.BLOW_RADIUS * 6);
   }
 
   pause() {
@@ -343,7 +378,7 @@ export class InkSimulation {
       }),
       display: this._mat(DISPLAY_FRAG, {
         uDye: { value: null },
-        uBackground: { value: new THREE.Vector3(...CONFIG.BG_COLOR) },
+        uPaper: { value: new THREE.Vector3(...CONFIG.PAPER_COLOR) },
       }),
     };
   }
@@ -504,14 +539,33 @@ export class InkSimulation {
     this.dye.swap();
   }
 
+  // 墨色 → absorption 向量（Beer-Lambert：A = -log(c)，深色吸收多）
+  _toAbsorption(color, out) {
+    const e = CONFIG.ABSORPTION_EPS;
+    out.set(
+      -Math.log(Math.max(color.r, e)),
+      -Math.log(Math.max(color.g, e)),
+      -Math.log(Math.max(color.b, e)),
+    );
+    return out;
+  }
+
   _drop(x, y) {
-    const c = this.color;
-    this._splatDye(x, y, [c.r * 0.85, c.g * 0.85, c.b * 0.85], CONFIG.DROP_RADIUS);
-    this._splatVelocity(x, y, CONFIG.DROP_PULSE, 0, CONFIG.DROP_RADIUS * 0.9, true);
+    this.splatAt(x, y);
   }
 
   _step(dt) {
     const m = this.mats;
+
+    // 洗い流す：dye 連續乘法衰減直到 wash 結束（uValue 用完還原 0.8——壓力初猜共用此材質）
+    if (this._washFrames > 0) {
+      m.clear.uniforms.uTexture.value = this.dye.read.texture;
+      m.clear.uniforms.uValue.value = CONFIG.WASH_DECAY;
+      this._run(m.clear, this.dye.write);
+      this.dye.swap();
+      m.clear.uniforms.uValue.value = 0.8;
+      this._washFrames--;
+    }
 
     if (this.gravity.lengthSq() > 0.25) {
       const f = m.force.uniforms;
