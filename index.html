@@ -150,11 +150,17 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   margin-bottom: 20px;
 }
 .modes[hidden] { display: none; } /* .modes 的 display:flex 會蓋掉 [hidden]，顯式還原 */
+.paper-group { padding-right: 16px; border-right: 1px solid rgba(42, 39, 35, .14); } /* 紙色＝畫材決策，與技法區隔 */
 .palette-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
-.actions-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+/* 清（破壞性）與完成作品（主 CTA）分置兩端，防誤觸 */
+.actions-row { display: flex; gap: 10px; justify-content: space-between; margin-top: 16px; }
+.primary-btn {
+  background: var(--gold); color: #f7f3ea; border-color: var(--gold);
+}
+.primary-btn:hover { background: #755c1a; border-color: #755c1a; color: #f7f3ea; }
 .palette { display: flex; gap: 12px; }
 .swatch {
-  width: 34px; height: 34px; border-radius: 50%;
+  width: 40px; height: 40px; border-radius: 50%; /* 觸控目標（手機 RWD 再放大至 44px） */
   border: 2px solid rgba(42, 39, 35, .12); cursor: pointer; padding: 0;
   transition: transform .2s, border-color .2s, box-shadow .2s;
 }
@@ -293,6 +299,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   #inkCanvas { height: 340px; }
   .toolbar { gap: 10px; }
   .mode-hint { order: 3; flex-basis: 100%; min-width: 0; }
+  .swatch { width: 44px; height: 44px; } /* 觸控目標最小 44px */
   .art-wall { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }
   .art-4 { grid-column: span 2; }
 }
@@ -328,7 +335,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   <p class="section-sub">選一種技法、選一色墨，在這裡親手感受流動墨的脾氣。</p>
   <div class="studio">
     <div class="toolbar">
-      <div class="modes" role="group" aria-label="紙色選擇">
+      <div class="modes paper-group" role="group" aria-label="紙色選擇">
         <button class="mode-btn paper-btn active" data-paper="light" aria-pressed="true">淺紙</button>
         <button class="mode-btn paper-btn" data-paper="dark" aria-pressed="false">深紙</button>
       </div>
@@ -357,7 +364,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
     </div>
     <div class="actions-row">
       <button class="clear-btn" id="clearBtn">清 ↺</button>
-      <button class="clear-btn" id="shareBtn">完成作品 ↗</button>
+      <button class="clear-btn primary-btn" id="shareBtn">完成作品 ↗</button>
     </div>
   </div>
 </section>
