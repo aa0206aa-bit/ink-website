@@ -1,6 +1,6 @@
 // fluid.js — 序序流體引擎
 // Stable fluids on GPU（Three.js 0.184.0 / WebGL2 / ShaderMaterial GLSL1 語法）
-// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / clear / splatAt / stir / pause / resume / destroy
+// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / clear / splatAt / stir / snapshot / pause / resume / destroy
 // 減法混色：dye field 存 absorption（吸收）向量，顯示 paper * exp(-absorption)（Beer-Lambert）
 // clear() 為洗い流す式漸淡（約 1.5 秒），非瞬間清空
 
@@ -26,6 +26,8 @@ const CONFIG = {
   WASH_FRAMES: 90,                // 洗い流す持續幀數（~1.5s @60fps）
   WASH_DECAY: 0.94,               // 洗墨時每幀 dye 乘法衰減
   ABSORPTION_EPS: 0.012,          // 轉 absorption 時色值下限（防 log(0)）
+  INK_STRENGTH: 2.2,              // 一滴墨的濃度係數（sRGB absorption 偏弱，以此補償）
+  WHITE_ABSORPTION: -1.0,         // 雲白（留白墨）負吸收強度（有效值 = 此值 × INK_STRENGTH）
 };
 
 // ===== Shaders =====
@@ -202,6 +204,7 @@ float hash(vec2 p) {
 void main() {
   vec3 absorption = texture2D(uDye, vUv).rgb;
   vec3 color = uPaper * exp(-absorption);
+  color = min(color, uPaper * 1.04); // 負吸收（雲白）上限：白紙上僅微提亮
   // 和紙纖維：高／中／低三頻 noise 微擾，避免平滑塑膠感
   float fiber = hash(vUv * 720.0) * 0.5 + hash(vUv * 190.0) * 0.3 + hash(vUv * 47.0) * 0.2;
   color *= 1.0 + (fiber - 0.5) * 0.045;
@@ -305,13 +308,32 @@ export class InkSimulation {
     if (hex) {
       a = this._toAbsorption(new THREE.Color(hex), new THREE.Vector3());
     }
-    this._splatDye(u, v, [a.x * 0.85, a.y * 0.85, a.z * 0.85], CONFIG.DROP_RADIUS);
+    const s = CONFIG.INK_STRENGTH;
+    this._splatDye(u, v, [a.x * s, a.y * s, a.z * s], CONFIG.DROP_RADIUS);
     this._splatVelocity(u, v, CONFIG.DROP_PULSE, 0, CONFIG.DROP_RADIUS * 0.9, true);
   }
 
   // 程式化輕水流（自動演出用）：在 u,v 注入方向性速度
   stir(u, v, fx, fy) {
     this._splatVelocity(u, v, fx, fy, CONFIG.BLOW_RADIUS * 6);
+  }
+
+  // 擷取當前畫布為 <canvas>（同步 render＋readPixels，不依賴 preserveDrawingBuffer）
+  snapshot() {
+    this._render();
+    const gl = this.renderer.getContext();
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    const px = new Uint8Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const ctx = out.getContext('2d');
+    const img = ctx.createImageData(w, h);
+    for (let y = 0; y < h; y++) {
+      img.data.set(px.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
+    }
+    ctx.putImageData(img, 0, 0);
+    return out;
   }
 
   pause() {
@@ -540,12 +562,20 @@ export class InkSimulation {
   }
 
   // 墨色 → absorption 向量（Beer-Lambert：A = -log(c)，深色吸收多）
+  // 用 sRGB 分量：THREE.Color 內部是 linear，display 輸出端是 sRGB canvas——
+  // 以 linear 算 absorption 會讓中濃度墨過飽和偏螢光
+  // 接近純白 → 負吸收（漂白／留白墨）：滴在墨上沖淡推開、白紙上僅微提亮（display 端 clamp）
   _toAbsorption(color, out) {
+    const c = color.clone().convertLinearToSRGB();
+    if (c.r > 0.9 && c.g > 0.9 && c.b > 0.9) {
+      const wa = CONFIG.WHITE_ABSORPTION;
+      return out.set(wa, wa, wa);
+    }
     const e = CONFIG.ABSORPTION_EPS;
     out.set(
-      -Math.log(Math.max(color.r, e)),
-      -Math.log(Math.max(color.g, e)),
-      -Math.log(Math.max(color.b, e)),
+      -Math.log(Math.max(c.r, e)),
+      -Math.log(Math.max(c.g, e)),
+      -Math.log(Math.max(c.b, e)),
     );
     return out;
   }

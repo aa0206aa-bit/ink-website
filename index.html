@@ -145,7 +145,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 .palette { display: flex; gap: 12px; }
 .swatch {
   width: 34px; height: 34px; border-radius: 50%;
-  border: 2px solid transparent; cursor: pointer; padding: 0;
+  border: 2px solid rgba(42, 39, 35, .12); cursor: pointer; padding: 0;
   transition: transform .2s, border-color .2s, box-shadow .2s;
 }
 .swatch:hover { transform: scale(1.12); }
@@ -191,6 +191,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
         <button class="mode-btn" data-mode="tilt" aria-pressed="false">傾斜</button>
       </div>
       <p class="mode-hint" id="modeHint">輕點畫布，看墨滴落、暈開</p>
+      <button class="clear-btn" id="shareBtn">分享 ↗</button>
       <button class="clear-btn" id="clearBtn">清 ↺</button>
     </div>
     <div class="canvas-wrap">
@@ -224,6 +225,8 @@ const INKS = [
   { no: '02', name: '夜枝', hex: '#8f2050', buyUrl: '#' },
   { no: '03', name: '鎏金', hex: '#9a7b1e', buyUrl: '#' },
   { no: '04', name: '靜淵', hex: '#24418f', buyUrl: '#' },
+  { no: '05', name: '玄墨', hex: '#26221e', buyUrl: '#' },
+  { no: '06', name: '雲白', hex: '#ffffff', buyUrl: '#' }, // 留白墨：滴在墨上沖淡推開
 ];
 
 const MODE_HINTS = {
@@ -282,6 +285,30 @@ if (sim) {
   // 清除：引擎內洗い流す漸淡（~1.5s 墨被水洗走，spec §4.2）
   const clearBtn = document.getElementById('clearBtn');
   clearBtn.addEventListener('click', () => sim.clear());
+
+  // 分享作品（spec §4.5）：Web Share API 開手機原生面板（IG／LINE），不支援則下載 PNG
+  document.getElementById('shareBtn').addEventListener('click', async () => {
+    const shot = sim.snapshot();
+    const sctx = shot.getContext('2d');
+    const fs = Math.max(14, Math.round(shot.width * 0.018));
+    sctx.font = `600 ${fs}px "Noto Serif TC", "Songti TC", serif`;
+    sctx.fillStyle = 'rgba(42, 39, 35, .4)';
+    sctx.textAlign = 'right';
+    sctx.fillText('序 序', shot.width - fs, shot.height - fs);
+    const blob = await new Promise((r) => shot.toBlob(r, 'image/png'));
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const file = new File([blob], `序序墨作-${stamp}.png`, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] }).catch(() => {}); // 用戶取消面板不算錯
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = file.name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+  });
 
   // 載入初始滴墨：首屏即有畫面（spec §4.4）
   [
