@@ -181,7 +181,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 .studio.dark .primary-btn { background: #d4af37; border-color: #d4af37; color: #17161a; }
 .studio.dark .primary-btn:hover { background: #e5c65a; border-color: #e5c65a; color: #17161a; }
 .studio.dark .clear-btn.confirming, .studio.dark .mode-btn.confirming { color: #e06a94; border-color: rgba(224, 106, 148, .6); }
-.palette { display: flex; gap: 12px; }
+.palette { display: flex; gap: 12px; flex-wrap: wrap; }
 .swatch {
   width: 40px; height: 40px; border-radius: 50%; /* 觸控目標（手機 RWD 再放大至 44px） */
   border: 2px solid rgba(42, 39, 35, .12); cursor: pointer; padding: 0;
@@ -323,7 +323,8 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   .hero { min-height: 64vh; }
   #inkCanvas { height: 340px; }
   .toolbar { gap: 10px; }
-  .swatch { width: 44px; height: 44px; } /* 觸控目標最小 44px */
+  .palette { gap: 8px; }
+  .swatch { width: 40px; height: 40px; } /* 40px＋窄間距：六球一排放得下 375px 螢幕（44px 會溢出） */
   .art-wall { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }
   .art-4 { grid-column: span 2; }
 }
