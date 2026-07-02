@@ -209,11 +209,13 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   border: 1px solid rgba(42, 39, 35, .1); /* 雲白等淺色在米白卡上需要輪廓 */
 }
 .ink-no { color: var(--text-faint); font-size: 11px; letter-spacing: 3px; }
-.ink-name { font-family: var(--serif); font-size: 22px; letter-spacing: 6px; margin: 6px 0 18px; }
+.ink-name { font-family: var(--serif); font-size: 22px; letter-spacing: 6px; margin: 6px 0 10px; }
+.ink-desc { color: var(--text-dim); font-size: 13px; line-height: 1.9; letter-spacing: 1px; margin-bottom: 16px; min-height: 3.8em; }
 .buy-btn {
   display: inline-block; padding: 9px 26px;
   border: 1px solid var(--gold-dim); color: var(--gold);
   font-size: 12px; letter-spacing: 2px;
+  background: transparent; cursor: pointer; font-family: var(--sans);
   transition: background .3s;
 }
 .buy-btn:hover { background: rgba(138, 109, 31, .1); }
@@ -393,7 +395,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 
 <section id="inks">
   <h2 class="section-title">墨色</h2>
-  <p class="section-sub">剛剛玩的顏色，就在這裡。每一瓶都是小量手工調製。<!-- 佔位文案 --></p>
+  <p class="section-sub">六色墨，六種脾氣。認識一下，再回去畫。<!-- 佔位文案：介紹卡定位 --></p>
   <div class="ink-grid" id="inkGrid"></div>
 </section>
 
@@ -445,13 +447,14 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 import { InkSimulation } from './fluid.js';
 
 // ===== 產品資料：單一事實來源（色盤＋產品卡都由此渲染；改連結/色號只改這裡）=====
+// desc 為佔位文案（墨色性格一句話），日後由決策者替換
 const INKS = [
-  { no: '01', name: '初潮', hex: '#0f6b63', buyUrl: '#' },
-  { no: '02', name: '夜枝', hex: '#8f2050', buyUrl: '#' },
-  { no: '03', name: '鎏金', hex: '#9a7b1e', buyUrl: '#' },
-  { no: '04', name: '靜淵', hex: '#24418f', buyUrl: '#' },
-  { no: '05', name: '霜銀', hex: '#adb3b8', buyUrl: '#' }, // 金屬銀灰：深紙上最亮眼
-  { no: '06', name: '雲白', hex: '#ffffff', buyUrl: '#' }, // 留白墨：滴在墨上沖淡推開
+  { no: '01', name: '初潮', hex: '#0f6b63', desc: '退潮後，留在礁石上的那層青。' },
+  { no: '02', name: '夜枝', hex: '#8f2050', desc: '入夜之後，枝影透出的酒紅。' },
+  { no: '03', name: '鎏金', hex: '#9a7b1e', desc: '沉在硯底、攪不散的金屑。' },
+  { no: '04', name: '靜淵', hex: '#24418f', desc: '深水不動聲色，藍得很安靜。' },
+  { no: '05', name: '霜銀', hex: '#adb3b8', desc: '月光落在石階上的灰——深紙上最亮眼。' },
+  { no: '06', name: '雲白', hex: '#ffffff', desc: '墨的留白、水的呼吸，滴在墨上會把墨推開。' },
 ];
 
 const MODE_HINTS = {
@@ -698,15 +701,24 @@ if (sim) {
   });
 }
 
-// ---- 墨色產品區（由 INKS 渲染：與色盤同一份資料；不依賴 WebGL，fallback 時也渲染）----
-document.getElementById('inkGrid').innerHTML = INKS.map((ink) => `
+// ---- 墨色介紹卡（由 INKS 渲染：與色盤同一份資料；不依賴 WebGL，fallback 時也渲染）----
+document.getElementById('inkGrid').innerHTML = INKS.map((ink, idx) => `
   <article class="ink-card">
     <div class="ink-dot" style="background: radial-gradient(circle at 35% 32%, ${ink.hex}, ${ink.hex}99 62%, ${ink.hex}55);"></div>
     <p class="ink-no">流動墨 №${ink.no}</p>
     <h3 class="ink-name">${ink.name}</h3>
-    <a class="buy-btn" href="${ink.buyUrl}" target="_blank" rel="noopener">帶它回家 ↗</a>
+    <p class="ink-desc">${ink.desc}</p>
+    <button class="buy-btn use-ink-btn" data-ink="${idx}">用這色畫 ↑</button>
   </article>
 `).join('');
+
+// 介紹卡 → 體驗區：捲回畫布並選好該色（與色盤 label 的 ↓ 互為往返）
+document.querySelectorAll('.use-ink-btn').forEach((btn) => btn.addEventListener('click', () => {
+  const idx = Number(btn.dataset.ink);
+  const swatch = document.querySelectorAll('.swatch')[idx];
+  if (swatch) swatch.click(); // WebGL fallback 時無色盤，只捲動
+  document.getElementById('experience').scrollIntoView({ behavior: 'smooth' });
+}));
 </script>
 </body>
 </html>
