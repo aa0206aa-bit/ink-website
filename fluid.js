@@ -14,7 +14,7 @@ const CONFIG = {
   PRESSURE_ITERATIONS: 22,        // Jacobi 迭代次數
   CURL_STRENGTH: 24,              // 渦度增強（墨紋捲曲感）
   VELOCITY_DISSIPATION: 0.28,     // 速度消散（越大流動停得越快）
-  DYE_DISSIPATION: 0.06,          // 染料消散（接近 0＝墨留在紙上）
+  DYE_DISSIPATION: 0,             // 染料不消散——畫作體驗：墨乾了就留在紙上，清除靠洗い流す
   DROP_RADIUS: 0.0035,            // 滴墨染料半徑（uv² 高斯）
   DROP_PULSE: 55,                 // 滴墨徑向速度脈衝強度
   DROP_MOVE_GAP: 0.06,            // 拖曳連滴的最小間距（uv）
@@ -32,7 +32,7 @@ const CONFIG = {
   ABSORPTION_EPS: 0.012,          // 轉 absorption 時色值下限（防 log(0)）
   INK_STRENGTH: 2.2,              // 一滴墨的濃度係數（sRGB absorption 偏弱，以此補償）
   WHITE_ABSORPTION: -1.0,         // 雲白（留白墨）負吸收強度（有效值 = 此值 × INK_STRENGTH）
-  INK_SATURATION: 0.35,           // 紙張吸墨飽和係數（濃度 3 時新墨只染上 ~35%）
+  INK_SATURATION: 0.2,            // 紙張吸墨飽和係數（防滿版死黑；過強會讓疊色畫不上去）
 };
 
 // ===== Shaders =====
