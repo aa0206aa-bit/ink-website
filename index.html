@@ -125,8 +125,14 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 }
 .mode-btn:hover, .clear-btn:hover { color: var(--text); border-color: rgba(42, 39, 35, .5); }
 .mode-btn.active { color: var(--gold); border-color: var(--gold-dim); background: rgba(138, 109, 31, .08); }
-.mode-hint { font-size: 12px; color: var(--text-faint); letter-spacing: 1px; flex: 1; min-width: 200px; }
 .canvas-wrap { position: relative; }
+.canvas-hint {
+  position: absolute; top: 16%; left: 24px; right: 24px;
+  text-align: center; pointer-events: none;
+  font-size: 13px; letter-spacing: 4px; color: rgba(42, 39, 35, .45);
+  transition: opacity .8s;
+}
+.canvas-hint.faded { opacity: 0; }
 #inkCanvas {
   width: 100%; height: 460px; display: block;
   border-radius: 4px; background: #efeae0;
@@ -158,6 +164,23 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   background: var(--gold); color: #f7f3ea; border-color: var(--gold);
 }
 .primary-btn:hover { background: #755c1a; border-color: #755c1a; color: #f7f3ea; }
+/* 破壞性動作的二次確認態（清／換紙） */
+.clear-btn.confirming, .mode-btn.confirming { color: #8f2050; border-color: rgba(143, 32, 80, .6); }
+
+/* ===== 深紙沉浸工作區 ===== */
+.studio.dark { background: #1d1b21; border-color: rgba(245, 242, 234, .07); }
+.studio.dark .mode-btn, .studio.dark .clear-btn { color: rgba(245, 242, 234, .6); border-color: rgba(245, 242, 234, .22); }
+.studio.dark .mode-btn:hover, .studio.dark .clear-btn:hover { color: #f5f2ea; border-color: rgba(245, 242, 234, .5); }
+.studio.dark .mode-btn.active { color: #d4af37; border-color: rgba(212, 175, 55, .55); background: rgba(212, 175, 55, .1); }
+.studio.dark .paper-group { border-right-color: rgba(245, 242, 234, .14); }
+.studio.dark .palette-label, .studio.dark .palette-label a { color: rgba(245, 242, 234, .45); }
+.studio.dark .palette-label a:hover { color: #d4af37; }
+.studio.dark .swatch { border-color: rgba(245, 242, 234, .18); }
+.studio.dark .swatch.active { border-color: #d4af37; box-shadow: 0 0 0 3px rgba(212, 175, 55, .18); }
+.studio.dark .canvas-hint { color: rgba(245, 242, 234, .45); }
+.studio.dark .primary-btn { background: #d4af37; border-color: #d4af37; color: #17161a; }
+.studio.dark .primary-btn:hover { background: #e5c65a; border-color: #e5c65a; color: #17161a; }
+.studio.dark .clear-btn.confirming, .studio.dark .mode-btn.confirming { color: #e06a94; border-color: rgba(224, 106, 148, .6); }
 .palette { display: flex; gap: 12px; }
 .swatch {
   width: 40px; height: 40px; border-radius: 50%; /* 觸控目標（手機 RWD 再放大至 44px） */
@@ -298,7 +321,6 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   .hero { min-height: 64vh; }
   #inkCanvas { height: 340px; }
   .toolbar { gap: 10px; }
-  .mode-hint { order: 3; flex-basis: 100%; min-width: 0; }
   .swatch { width: 44px; height: 44px; } /* 觸控目標最小 44px */
   .art-wall { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }
   .art-4 { grid-column: span 2; }
@@ -349,7 +371,6 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
         <button class="mode-btn width-btn active" data-width="medium" aria-pressed="true">中</button>
         <button class="mode-btn width-btn" data-width="thick" aria-pressed="false">粗</button>
       </div>
-      <p class="mode-hint" id="modeHint">輕點畫布，看墨滴落、暈開</p>
     </div>
     <div class="palette-row">
       <div class="palette" id="palette" role="group" aria-label="墨色選擇"></div>
@@ -357,6 +378,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
     </div>
     <div class="canvas-wrap">
       <canvas id="inkCanvas"></canvas>
+      <p class="canvas-hint" id="modeHint">輕點畫布，看墨滴落、暈開</p>
       <div class="fallback" id="webglFallback" hidden>
         <div class="fallback-blob"></div>
         <p>你的瀏覽器不支援互動墨水體驗。<br>往下看看墨色與作品吧。</p>
@@ -453,8 +475,22 @@ try {
 window.__inkSim = sim; // 調試用
 
 if (sim) {
-  const modeBtns = document.querySelectorAll('.mode-btn[data-mode]');
+  // 畫布內提示：載入顯示 → 9s 自動淡出；下筆立即淡出；切技法重現 4s
   const hintEl = document.getElementById('modeHint');
+  let hintTimer = 0;
+  const showHint = (text, ms) => {
+    hintEl.textContent = text;
+    hintEl.classList.remove('faded');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => hintEl.classList.add('faded'), ms);
+  };
+  showHint(MODE_HINTS.drop, 9000);
+  canvas.addEventListener('pointerdown', () => {
+    clearTimeout(hintTimer);
+    hintEl.classList.add('faded');
+  });
+
+  const modeBtns = document.querySelectorAll('.mode-btn[data-mode]');
   const lineWidths = document.getElementById('lineWidths');
   modeBtns.forEach((btn) => btn.addEventListener('click', () => {
     modeBtns.forEach((b) => {
@@ -462,7 +498,7 @@ if (sim) {
       b.setAttribute('aria-pressed', String(b === btn));
     });
     sim.setMode(btn.dataset.mode);
-    hintEl.textContent = MODE_HINTS[btn.dataset.mode];
+    showHint(MODE_HINTS[btn.dataset.mode], 4000);
     lineWidths.hidden = btn.dataset.mode !== 'line'; // 粗細選項只在線條技法顯示
   }));
 
@@ -498,20 +534,56 @@ if (sim) {
   sim.setColor(INKS[0].hex);
   setLabel(INKS[0]);
 
-  // 清除：引擎內洗い流す漸淡（~1.5s 墨被水洗走，spec §4.2）
-  const clearBtn = document.getElementById('clearBtn');
-  clearBtn.addEventListener('click', () => sim.clear());
-
-  // 紙色切換（spec §4.6）：淺＝減法混色／深＝發光墨；切換即換紙重畫
-  const paperBtns = document.querySelectorAll('.paper-btn');
-  paperBtns.forEach((btn) => btn.addEventListener('click', () => {
-    paperBtns.forEach((b) => {
-      b.classList.toggle('active', b === btn);
-      b.setAttribute('aria-pressed', String(b === btn));
+  // 破壞性動作的按鈕內二次確認：第一次點變警示文字，3s 內再點才執行
+  let canvasDirty = false;
+  canvas.addEventListener('pointerdown', () => { canvasDirty = true; });
+  const armConfirm = (btn, confirmText, needConfirm, action) => {
+    const original = btn.textContent;
+    let timer = 0;
+    const disarm = () => {
+      delete btn.dataset.confirming;
+      btn.textContent = original;
+      btn.classList.remove('confirming');
+      clearTimeout(timer);
+    };
+    btn.addEventListener('click', () => {
+      if (btn.dataset.confirming || !needConfirm()) {
+        disarm();
+        action();
+      } else {
+        btn.dataset.confirming = '1';
+        btn.textContent = confirmText;
+        btn.classList.add('confirming');
+        timer = setTimeout(disarm, 3000);
+      }
     });
-    sim.setPaper(btn.dataset.paper);
-    canvas.style.background = btn.dataset.paper === 'dark' ? '#17161a' : '#efeae0';
-  }));
+  };
+
+  // 清除：引擎內洗い流す漸淡（~1.5s 墨被水洗走，spec §4.2）；有畫作時二次確認
+  const clearBtn = document.getElementById('clearBtn');
+  armConfirm(clearBtn, '確定洗去？', () => canvasDirty, () => {
+    sim.clear();
+    canvasDirty = false;
+  });
+
+  // 紙色切換（spec §4.6）：淺＝減法混色／深＝發光墨；切換即換紙重畫。
+  // 有畫作時二次確認（換紙會洗去作品）；同步深色沉浸工作區
+  const studio = document.querySelector('.studio');
+  const paperBtns = document.querySelectorAll('.paper-btn');
+  paperBtns.forEach((btn) => {
+    armConfirm(btn, '洗去畫作？', () => canvasDirty && !btn.classList.contains('active'), () => {
+      if (btn.classList.contains('active')) return;
+      paperBtns.forEach((b) => {
+        b.classList.toggle('active', b === btn);
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+      sim.setPaper(btn.dataset.paper);
+      const dark = btn.dataset.paper === 'dark';
+      canvas.style.background = dark ? '#17161a' : '#efeae0';
+      studio.classList.toggle('dark', dark);
+      canvasDirty = false;
+    });
+  });
 
   // 完成作品（spec §4.5）：快照 → 合成作品卡（紙框＋落款）→ 預覽 modal → 分享／下載
   const shareModal = document.getElementById('shareModal');
