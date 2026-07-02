@@ -231,7 +231,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 .art-5 {
   background:
     radial-gradient(ellipse 70% 60% at 60% 35%, rgba(143, 32, 80, .52), rgba(143, 32, 80, .15) 58%, transparent 78%),
-    radial-gradient(ellipse 45% 40% at 25% 75%, rgba(38, 34, 30, .45), transparent 72%),
+    radial-gradient(ellipse 45% 40% at 25% 75%, rgba(122, 130, 137, .5), transparent 72%),
     #f4efe3;
 }
 .art-6 {
@@ -251,6 +251,24 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 .footer-links a { color: var(--text-dim); font-size: 13px; letter-spacing: 2px; }
 .footer-links a:hover { color: var(--gold); }
 .footer-copy { color: var(--text-faint); font-size: 11px; letter-spacing: 2px; }
+
+/* ===== 作品分享 modal ===== */
+.share-modal {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(42, 39, 35, .45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 24px;
+}
+.share-modal[hidden] { display: none; }
+.share-card {
+  background: var(--panel); border-radius: 6px; padding: 20px;
+  max-width: 720px; width: 100%;
+  border: 1px solid rgba(42, 39, 35, .1);
+}
+.share-img { display: block; width: 100%; max-height: 62vh; object-fit: contain; border-radius: 3px; }
+.share-actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
 
 /* ===== RWD ===== */
 @media (max-width: 720px) {
@@ -301,8 +319,12 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
         <button class="mode-btn" data-mode="blow" aria-pressed="false">吹墨</button>
         <button class="mode-btn" data-mode="tilt" aria-pressed="false">傾斜</button>
       </div>
+      <div class="modes" role="group" aria-label="紙色選擇">
+        <button class="mode-btn paper-btn active" data-paper="light" aria-pressed="true">淺紙</button>
+        <button class="mode-btn paper-btn" data-paper="dark" aria-pressed="false">深紙</button>
+      </div>
       <p class="mode-hint" id="modeHint">輕點畫布，看墨滴落、暈開</p>
-      <button class="clear-btn" id="shareBtn">分享 ↗</button>
+      <button class="clear-btn" id="shareBtn">完成作品 ↗</button>
       <button class="clear-btn" id="clearBtn">清 ↺</button>
     </div>
     <div class="canvas-wrap">
@@ -333,7 +355,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
     <figure class="artwork art-2"><figcaption>夜枝</figcaption></figure>
     <figure class="artwork art-3"><figcaption>鎏金 × 靜淵</figcaption></figure>
     <figure class="artwork art-4"><figcaption>靜淵 × 初潮</figcaption></figure>
-    <figure class="artwork art-5"><figcaption>夜枝 × 玄墨</figcaption></figure>
+    <figure class="artwork art-5"><figcaption>夜枝 × 霜銀</figcaption></figure>
     <figure class="artwork art-6"><figcaption>初潮 × 雲白</figcaption></figure>
   </div>
 </section>
@@ -347,6 +369,17 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
     然後把最耐看的那幾色，小量裝瓶，交到你手上。
   </p>
 </section>
+
+<div class="share-modal" id="shareModal" hidden>
+  <div class="share-card">
+    <img class="share-img" id="shareImg" alt="你的墨作">
+    <div class="share-actions">
+      <button class="clear-btn" id="shareSend">分享</button>
+      <button class="clear-btn" id="shareSave">下載</button>
+      <button class="clear-btn" id="shareClose">關閉</button>
+    </div>
+  </div>
+</div>
 
 <footer class="footer">
   <div class="footer-links">
@@ -367,7 +400,7 @@ const INKS = [
   { no: '02', name: '夜枝', hex: '#8f2050', buyUrl: '#' },
   { no: '03', name: '鎏金', hex: '#9a7b1e', buyUrl: '#' },
   { no: '04', name: '靜淵', hex: '#24418f', buyUrl: '#' },
-  { no: '05', name: '玄墨', hex: '#26221e', buyUrl: '#' },
+  { no: '05', name: '霜銀', hex: '#adb3b8', buyUrl: '#' }, // 金屬銀灰：深紙上最亮眼
   { no: '06', name: '雲白', hex: '#ffffff', buyUrl: '#' }, // 留白墨：滴在墨上沖淡推開
 ];
 
@@ -428,28 +461,72 @@ if (sim) {
   const clearBtn = document.getElementById('clearBtn');
   clearBtn.addEventListener('click', () => sim.clear());
 
-  // 分享作品（spec §4.5）：Web Share API 開手機原生面板（IG／LINE），不支援則下載 PNG
-  document.getElementById('shareBtn').addEventListener('click', async () => {
+  // 紙色切換（spec §4.6）：淺＝減法混色／深＝發光墨；切換即換紙重畫
+  const paperBtns = document.querySelectorAll('.paper-btn');
+  paperBtns.forEach((btn) => btn.addEventListener('click', () => {
+    paperBtns.forEach((b) => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    sim.setPaper(btn.dataset.paper);
+    canvas.style.background = btn.dataset.paper === 'dark' ? '#17161a' : '#efeae0';
+  }));
+
+  // 完成作品（spec §4.5）：快照 → 合成作品卡（紙框＋落款）→ 預覽 modal → 分享／下載
+  const shareModal = document.getElementById('shareModal');
+  const shareImg = document.getElementById('shareImg');
+  const shareSend = document.getElementById('shareSend');
+  let shareFile = null;
+  const composeArtwork = () => {
     const shot = sim.snapshot();
-    const sctx = shot.getContext('2d');
-    const fs = Math.max(14, Math.round(shot.width * 0.018));
-    sctx.font = `600 ${fs}px "Noto Serif TC", "Songti TC", serif`;
-    sctx.fillStyle = 'rgba(42, 39, 35, .4)';
-    sctx.textAlign = 'right';
-    sctx.fillText('序 序', shot.width - fs, shot.height - fs);
-    const blob = await new Promise((r) => shot.toBlob(r, 'image/png'));
+    const isDark = sim.paperMode === 'dark';
+    const frame = Math.round(shot.width * 0.055);
+    const captionH = Math.round(shot.width * 0.05);
+    const out = document.createElement('canvas');
+    out.width = shot.width + frame * 2;
+    out.height = shot.height + frame * 2 + captionH;
+    const ctx = out.getContext('2d');
+    ctx.fillStyle = isDark ? '#211f26' : '#f7f3ea';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(shot, frame, frame);
+    const d = new Date();
+    const dateStr = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    const fs = Math.max(13, Math.round(out.width * 0.016));
+    ctx.font = `600 ${fs}px "Noto Serif TC", "Songti TC", serif`;
+    ctx.fillStyle = isDark ? 'rgba(245, 242, 234, .55)' : 'rgba(42, 39, 35, .55)';
+    ctx.textBaseline = 'middle';
+    const midY = shot.height + frame + (frame + captionH) / 2 - frame / 2;
+    ctx.textAlign = 'left';
+    ctx.fillText(`序序墨作 · ${dateStr}`, frame, midY);
+    ctx.textAlign = 'right';
+    ctx.fillText('序 序', out.width - frame, midY);
+    return out;
+  };
+  document.getElementById('shareBtn').addEventListener('click', async () => {
+    const art = composeArtwork();
+    const blob = await new Promise((r) => art.toBlob(r, 'image/png'));
     const d = new Date();
     const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    const file = new File([blob], `序序墨作-${stamp}.png`, { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file] }).catch(() => {}); // 用戶取消面板不算錯
-    } else {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = file.name;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }
+    shareFile = new File([blob], `序序墨作-${stamp}.png`, { type: 'image/png' });
+    shareImg.src = URL.createObjectURL(blob);
+    shareSend.hidden = !(navigator.canShare && navigator.canShare({ files: [shareFile] }));
+    shareModal.hidden = false;
+  });
+  shareSend.addEventListener('click', () => {
+    navigator.share({ files: [shareFile] }).catch(() => {}); // 用戶取消面板不算錯
+  });
+  document.getElementById('shareSave').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = shareImg.src;
+    a.download = shareFile.name;
+    a.click();
+  });
+  document.getElementById('shareClose').addEventListener('click', () => {
+    URL.revokeObjectURL(shareImg.src);
+    shareModal.hidden = true;
+  });
+  shareModal.addEventListener('click', (e) => {
+    if (e.target === shareModal) document.getElementById('shareClose').click();
   });
 
   // 載入初始滴墨：首屏即有畫面（spec §4.4）

@@ -1,6 +1,6 @@
 // fluid.js — 序序流體引擎
 // Stable fluids on GPU（Three.js 0.184.0 / WebGL2 / ShaderMaterial GLSL1 語法）
-// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / clear / splatAt / stir / snapshot / pause / resume / destroy
+// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / setPaper / clear / splatAt / stir / snapshot / pause / resume / destroy
 // 減法混色：dye field 存 absorption（吸收）向量，顯示 paper * exp(-absorption)（Beer-Lambert）
 // clear() 為洗い流す式漸淡（約 1.5 秒），非瞬間清空
 
@@ -23,6 +23,8 @@ const CONFIG = {
   TILT_FORCE: 230,                // 傾斜全域力（Task 3）
   TILT_DECAY: 0.97,               // 鬆手後每幀衰減（Task 3）
   PAPER_COLOR: [0.937, 0.918, 0.878], // 和紙米色 #efeae0（顯示用紙底）
+  PAPER_DARK: [0.09, 0.086, 0.102],   // 深紙炭黑 #17161a（發光墨模式）
+  INK_STRENGTH_DARK: 0.85,            // 深紙發光墨強度（過高會過曝）
   WASH_FRAMES: 90,                // 洗い流す持續幀數（~1.5s @60fps）
   WASH_DECAY: 0.94,               // 洗墨時每幀 dye 乘法衰減
   ABSORPTION_EPS: 0.012,          // 轉 absorption 時色值下限（防 log(0)）
@@ -193,18 +195,25 @@ void main() {
 }
 `;
 
-// 染料場 → 螢幕：減法混色（dye＝absorption，墨沉入紙）＋和紙纖維＋vignette＋dither
+// 染料場 → 螢幕：淺紙＝減法混色（dye＝absorption，墨沉入紙）；深紙＝發光墨（dye＝光色）
+// 兩模式共用和紙纖維＋vignette＋dither
 const DISPLAY_FRAG = /* glsl */ `
 varying vec2 vUv;
 uniform sampler2D uDye;
 uniform vec3 uPaper;
+uniform float uDark;
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 void main() {
-  vec3 absorption = texture2D(uDye, vUv).rgb;
-  vec3 color = uPaper * exp(-absorption);
-  color = min(color, uPaper * 1.04); // 負吸收（雲白）上限：白紙上僅微提亮
+  vec3 ink = texture2D(uDye, vUv).rgb;
+  vec3 color;
+  if (uDark > 0.5) {
+    color = uPaper + ink;              // 深紙：發光墨
+  } else {
+    color = uPaper * exp(-ink);        // 淺紙：Beer-Lambert 沉墨
+    color = min(color, uPaper * 1.04); // 負吸收（雲白）上限：白紙上僅微提亮
+  }
   // 和紙纖維：高／中／低三頻 noise 微擾，避免平滑塑膠感
   float fiber = hash(vUv * 720.0) * 0.5 + hash(vUv * 190.0) * 0.3 + hash(vUv * 47.0) * 0.2;
   color *= 1.0 + (fiber - 0.5) * 0.045;
@@ -252,9 +261,10 @@ export class InkSimulation {
     this.scene.add(this.mesh);
 
     this.mode = 'drop';
+    this.paperMode = 'light';
     this.color = new THREE.Color('#0f6b63');
     this._absorption = new THREE.Vector3();
-    this._toAbsorption(this.color, this._absorption);
+    this._toInk(this.color, this._absorption);
     this.gravity = new THREE.Vector2(0, 0);
     this.paused = false;
     this._raf = 0;
@@ -279,11 +289,23 @@ export class InkSimulation {
 
   setColor(hex) {
     this.color.set(hex);
-    this._toAbsorption(this.color, this._absorption);
+    this._toInk(this.color, this._absorption);
   }
 
   setMode(mode) {
     if (mode === 'drop' || mode === 'blow' || mode === 'tilt') this.mode = mode;
+  }
+
+  // 紙色切換：light＝和紙米色（減法混色）／dark＝炭黑（發光墨）。
+  // 兩模式 dye 語意不同，切換即立即清空重畫（換紙重來）
+  setPaper(mode) {
+    if ((mode !== 'light' && mode !== 'dark') || mode === this.paperMode) return;
+    this.paperMode = mode;
+    const p = mode === 'dark' ? CONFIG.PAPER_DARK : CONFIG.PAPER_COLOR;
+    this.mats.display.uniforms.uPaper.value.set(p[0], p[1], p[2]);
+    this.mats.display.uniforms.uDark.value = mode === 'dark' ? 1 : 0;
+    this._toInk(this.color, this._absorption);
+    this._clearImmediate();
   }
 
   // 洗い流す：速度／壓力立即歸零，墨於 _step 中連續衰減漸淡（~1.5s）
@@ -302,13 +324,30 @@ export class InkSimulation {
     this._washFrames = CONFIG.WASH_FRAMES;
   }
 
+  // 立即清空（換紙用：舊 dye 在新模式下語意錯誤，不走漸淡）
+  _clearImmediate() {
+    const r = this.renderer;
+    const targets = [
+      this.dye.read, this.dye.write,
+      this.velocity.read, this.velocity.write,
+      this.pressure.read, this.pressure.write,
+    ];
+    for (const rt of targets) {
+      r.setRenderTarget(rt);
+      r.clear(true, false, false);
+    }
+    r.setRenderTarget(null);
+    this.gravity.set(0, 0);
+    this._washFrames = 0;
+  }
+
   // 程式化滴墨（自動演出／初始動畫用）。u,v 為 0–1 畫布座標（v 向上），hex 省略用當前墨色
   splatAt(u, v, hex) {
     let a = this._absorption;
     if (hex) {
-      a = this._toAbsorption(new THREE.Color(hex), new THREE.Vector3());
+      a = this._toInk(new THREE.Color(hex), new THREE.Vector3());
     }
-    const s = CONFIG.INK_STRENGTH;
+    const s = this.paperMode === 'dark' ? CONFIG.INK_STRENGTH_DARK : CONFIG.INK_STRENGTH;
     this._splatDye(u, v, [a.x * s, a.y * s, a.z * s], CONFIG.DROP_RADIUS);
     this._splatVelocity(u, v, CONFIG.DROP_PULSE, 0, CONFIG.DROP_RADIUS * 0.9, true);
   }
@@ -401,6 +440,7 @@ export class InkSimulation {
       display: this._mat(DISPLAY_FRAG, {
         uDye: { value: null },
         uPaper: { value: new THREE.Vector3(...CONFIG.PAPER_COLOR) },
+        uDark: { value: 0 },
       }),
     };
   }
@@ -561,12 +601,16 @@ export class InkSimulation {
     this.dye.swap();
   }
 
-  // 墨色 → absorption 向量（Beer-Lambert：A = -log(c)，深色吸收多）
-  // 用 sRGB 分量：THREE.Color 內部是 linear，display 輸出端是 sRGB canvas——
-  // 以 linear 算 absorption 會讓中濃度墨過飽和偏螢光
-  // 接近純白 → 負吸收（漂白／留白墨）：滴在墨上沖淡推開、白紙上僅微提亮（display 端 clamp）
-  _toAbsorption(color, out) {
+  // 墨色 → dye 向量，依紙色模式分派：
+  // light：absorption（Beer-Lambert：A = -log(c)，深色吸收多）；接近純白給負吸收（漂白／留白墨）
+  // dark：直接 sRGB 光色（發光墨）
+  // 皆用 sRGB 分量：THREE.Color 內部是 linear，display 輸出端是 sRGB canvas——
+  // 以 linear 計算會讓中濃度墨過飽和偏螢光
+  _toInk(color, out) {
     const c = color.clone().convertLinearToSRGB();
+    if (this.paperMode === 'dark') {
+      return out.set(c.r, c.g, c.b);
+    }
     if (c.r > 0.9 && c.g > 0.9 && c.b > 0.9) {
       const wa = CONFIG.WHITE_ABSORPTION;
       return out.set(wa, wa, wa);
