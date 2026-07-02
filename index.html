@@ -132,11 +132,13 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   border-radius: 4px; background: #efeae0;
   touch-action: none; cursor: crosshair;
 }
+#inkCanvas[hidden] { display: none; }
 .fallback {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; color: var(--text-dim); font-size: 14px; line-height: 2;
 }
+.fallback[hidden] { display: none; } /* author 的 display: flex 會蓋掉 [hidden] 的 UA 樣式，需顯式還原 */
 .fallback-blob {
   width: 180px; height: 180px; border-radius: 50%;
   background:
