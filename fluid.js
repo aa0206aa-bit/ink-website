@@ -1,6 +1,6 @@
 // fluid.js — 序序流體引擎
 // Stable fluids on GPU（Three.js 0.184.0 / WebGL2 / ShaderMaterial GLSL1 語法）
-// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / setPaper / clear / splatAt / stir / snapshot / pause / resume / destroy
+// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / setPaper / setLineWidth / clear / splatAt / stir / snapshot / pause / resume / destroy
 // 減法混色：dye field 存 absorption（吸收）向量，顯示 paper * exp(-absorption)（Beer-Lambert）
 // clear() 為洗い流す式漸淡（約 1.5 秒），非瞬間清空
 
@@ -18,7 +18,7 @@ const CONFIG = {
   DROP_RADIUS: 0.0035,            // 滴墨染料半徑（uv² 高斯）
   DROP_PULSE: 55,                 // 滴墨徑向速度脈衝強度
   DROP_MOVE_GAP: 0.06,            // 拖曳連滴的最小間距（uv）
-  LINE_RADIUS: 0.0005,            // 線條墨半徑（細，uv² 高斯）
+  LINE_WIDTHS: { thin: 0.00015, medium: 0.0005, thick: 0.002 }, // 線條墨半徑三檔（uv² 高斯；視覺線寬 ∝ √值）
   LINE_GAP: 0.006,                // 線條下墨步距（密→連續線）
   BLOW_FORCE: 4500,               // 吹墨推力（Task 3 使用）
   BLOW_RADIUS: 0.0007,            // 吹墨作用半徑（細→觸鬚）（Task 3）
@@ -264,6 +264,7 @@ export class InkSimulation {
 
     this.mode = 'drop';
     this.paperMode = 'light';
+    this._lineRadius = CONFIG.LINE_WIDTHS.medium;
     this.color = new THREE.Color('#0f6b63');
     this._absorption = new THREE.Vector3();
     this._toInk(this.color, this._absorption);
@@ -296,6 +297,11 @@ export class InkSimulation {
 
   setMode(mode) {
     if (mode === 'drop' || mode === 'blow' || mode === 'line' || mode === 'tilt') this.mode = mode;
+  }
+
+  // 線條粗細：'thin' | 'medium' | 'thick'
+  setLineWidth(width) {
+    if (CONFIG.LINE_WIDTHS[width]) this._lineRadius = CONFIG.LINE_WIDTHS[width];
   }
 
   // 紙色切換：light＝和紙米色（減法混色）／dark＝炭黑（發光墨）。
@@ -562,6 +568,11 @@ export class InkSimulation {
     c.addEventListener('pointerup', this._onUp);
     c.addEventListener('pointercancel', this._onUp);
 
+    // iOS Safari 對 touch-action: none 不完全可靠——作畫時頁面仍會捲動；
+    // 需 non-passive touchmove preventDefault 雙保險（畫布上不捲頁，畫布外正常捲）
+    this._onTouchMove = (e) => e.preventDefault();
+    c.addEventListener('touchmove', this._onTouchMove, { passive: false });
+
     // 手機切換 app 等情境會弄丟 GL context；Three.js 會自行重建 GL 狀態，
     // 但紋理內容已失，clear() 讓模擬回到一致的空白狀態
     this._onCtxLost = (e) => { e.preventDefault(); this.pause(); };
@@ -583,6 +594,7 @@ export class InkSimulation {
     c.removeEventListener('pointermove', this._onMove);
     c.removeEventListener('pointerup', this._onUp);
     c.removeEventListener('pointercancel', this._onUp);
+    c.removeEventListener('touchmove', this._onTouchMove);
     c.removeEventListener('webglcontextlost', this._onCtxLost);
     c.removeEventListener('webglcontextrestored', this._onCtxRestored);
     this._ro.disconnect();
@@ -651,7 +663,7 @@ export class InkSimulation {
   _lineDot(x, y) {
     const a = this._absorption;
     const s = this.paperMode === 'dark' ? CONFIG.INK_STRENGTH_DARK : CONFIG.INK_STRENGTH;
-    this._splatDye(x, y, [a.x * s, a.y * s, a.z * s], CONFIG.LINE_RADIUS);
+    this._splatDye(x, y, [a.x * s, a.y * s, a.z * s], this._lineRadius);
   }
 
   _step(dt) {

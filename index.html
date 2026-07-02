@@ -131,6 +131,8 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   width: 100%; height: 460px; display: block;
   border-radius: 4px; background: #efeae0;
   touch-action: none; cursor: crosshair;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none; /* iOS 長按不出放大鏡／選單 */
 }
 #inkCanvas[hidden] { display: none; }
 .fallback {
@@ -147,7 +149,9 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   filter: blur(4px);
   margin-bottom: 20px;
 }
-.palette-row { display: flex; align-items: center; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+.modes[hidden] { display: none; } /* .modes 的 display:flex 會蓋掉 [hidden]，顯式還原 */
+.palette-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.actions-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
 .palette { display: flex; gap: 12px; }
 .swatch {
   width: 34px; height: 34px; border-radius: 50%;
@@ -269,8 +273,16 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   max-width: 720px; width: 100%;
   border: 1px solid rgba(42, 39, 35, .1);
 }
-.share-img { display: block; width: 100%; max-height: 62vh; object-fit: contain; border-radius: 3px; }
-.share-actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.share-img { display: block; width: 100%; max-height: 58vh; object-fit: contain; border-radius: 3px; }
+.sign-input {
+  display: block; width: 100%; margin-top: 14px;
+  padding: 10px 14px; font-family: var(--serif); font-size: 15px; letter-spacing: 2px;
+  color: var(--text); background: transparent;
+  border: 1px solid rgba(42, 39, 35, .2); border-radius: 3px;
+}
+.sign-input:focus { outline: none; border-color: var(--gold-dim); }
+.sign-input::placeholder { color: var(--text-faint); letter-spacing: 2px; }
+.share-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
 
 /* ===== RWD ===== */
 @media (max-width: 720px) {
@@ -325,9 +337,16 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
         <button class="mode-btn" data-mode="blow" aria-pressed="false">吹墨</button>
         <button class="mode-btn" data-mode="line" aria-pressed="false">線條</button>
       </div>
+      <div class="modes" id="lineWidths" role="group" aria-label="線條粗細" hidden>
+        <button class="mode-btn width-btn" data-width="thin" aria-pressed="false">細</button>
+        <button class="mode-btn width-btn active" data-width="medium" aria-pressed="true">中</button>
+        <button class="mode-btn width-btn" data-width="thick" aria-pressed="false">粗</button>
+      </div>
       <p class="mode-hint" id="modeHint">輕點畫布，看墨滴落、暈開</p>
-      <button class="clear-btn" id="shareBtn">完成作品 ↗</button>
-      <button class="clear-btn" id="clearBtn">清 ↺</button>
+    </div>
+    <div class="palette-row">
+      <div class="palette" id="palette" role="group" aria-label="墨色選擇"></div>
+      <p class="palette-label" id="paletteLabel"></p>
     </div>
     <div class="canvas-wrap">
       <canvas id="inkCanvas"></canvas>
@@ -336,9 +355,9 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
         <p>你的瀏覽器不支援互動墨水體驗。<br>往下看看墨色與作品吧。</p>
       </div>
     </div>
-    <div class="palette-row">
-      <div class="palette" id="palette" role="group" aria-label="墨色選擇"></div>
-      <p class="palette-label" id="paletteLabel"></p>
+    <div class="actions-row">
+      <button class="clear-btn" id="clearBtn">清 ↺</button>
+      <button class="clear-btn" id="shareBtn">完成作品 ↗</button>
     </div>
   </div>
 </section>
@@ -375,6 +394,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 <div class="share-modal" id="shareModal" hidden>
   <div class="share-card">
     <img class="share-img" id="shareImg" alt="你的墨作">
+    <input class="sign-input" id="signInput" type="text" maxlength="16" placeholder="替作品簽名（選填）" autocomplete="off">
     <div class="share-actions">
       <button class="clear-btn" id="shareSend">分享</button>
       <button class="clear-btn" id="shareSave">下載</button>
@@ -426,8 +446,9 @@ try {
 window.__inkSim = sim; // 調試用
 
 if (sim) {
-  const modeBtns = document.querySelectorAll('.mode-btn');
+  const modeBtns = document.querySelectorAll('.mode-btn[data-mode]');
   const hintEl = document.getElementById('modeHint');
+  const lineWidths = document.getElementById('lineWidths');
   modeBtns.forEach((btn) => btn.addEventListener('click', () => {
     modeBtns.forEach((b) => {
       b.classList.toggle('active', b === btn);
@@ -435,6 +456,17 @@ if (sim) {
     });
     sim.setMode(btn.dataset.mode);
     hintEl.textContent = MODE_HINTS[btn.dataset.mode];
+    lineWidths.hidden = btn.dataset.mode !== 'line'; // 粗細選項只在線條技法顯示
+  }));
+
+  // 線條粗細
+  const widthBtns = document.querySelectorAll('.width-btn');
+  widthBtns.forEach((btn) => btn.addEventListener('click', () => {
+    widthBtns.forEach((b) => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    sim.setLineWidth(btn.dataset.width);
   }));
 
   const palette = document.getElementById('palette');
@@ -478,8 +510,9 @@ if (sim) {
   const shareModal = document.getElementById('shareModal');
   const shareImg = document.getElementById('shareImg');
   const shareSend = document.getElementById('shareSend');
+  const signInput = document.getElementById('signInput');
   let shareFile = null;
-  const composeArtwork = () => {
+  const composeArtwork = (signature) => {
     const shot = sim.snapshot();
     const isDark = sim.paperMode === 'dark';
     const frame = Math.round(shot.width * 0.055);
@@ -499,20 +532,29 @@ if (sim) {
     ctx.textBaseline = 'middle';
     const midY = shot.height + frame + (frame + captionH) / 2 - frame / 2;
     ctx.textAlign = 'left';
-    ctx.fillText(`序序墨作 · ${dateStr}`, frame, midY);
+    ctx.fillText(`${signature || '序序墨作'} · ${dateStr}`, frame, midY);
     ctx.textAlign = 'right';
     ctx.fillText('序 序', out.width - frame, midY);
     return out;
   };
-  document.getElementById('shareBtn').addEventListener('click', async () => {
-    const art = composeArtwork();
+  const rebuildArtwork = async () => {
+    const art = composeArtwork(signInput.value.trim());
     const blob = await new Promise((r) => art.toBlob(r, 'image/png'));
     const d = new Date();
     const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
     shareFile = new File([blob], `序序墨作-${stamp}.png`, { type: 'image/png' });
+    if (shareImg.src.startsWith('blob:')) URL.revokeObjectURL(shareImg.src);
     shareImg.src = URL.createObjectURL(blob);
     shareSend.hidden = !(navigator.canShare && navigator.canShare({ files: [shareFile] }));
+  };
+  document.getElementById('shareBtn').addEventListener('click', async () => {
+    await rebuildArtwork();
     shareModal.hidden = false;
+  });
+  let signTimer = 0;
+  signInput.addEventListener('input', () => {
+    clearTimeout(signTimer);
+    signTimer = setTimeout(rebuildArtwork, 350); // 簽名即時重合成（debounce）
   });
   shareSend.addEventListener('click', () => {
     navigator.share({ files: [shareFile] }).catch(() => {}); // 用戶取消面板不算錯
