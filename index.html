@@ -178,6 +178,65 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   transition: background .3s;
 }
 .buy-btn:hover { background: rgba(138, 109, 31, .1); }
+
+/* ===== 作品展示（紙上墨暈佔位視覺）===== */
+.placeholder-note { color: var(--text-faint); font-size: 12px; }
+.art-wall { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 200px; gap: 14px; }
+.artwork {
+  position: relative; margin: 0; border-radius: 5px; overflow: hidden;
+  border: 1px solid rgba(42, 39, 35, .08);
+}
+.artwork::after {
+  /* 紙感噪點（SVG feTurbulence，零外部請求） */
+  content: ""; position: absolute; inset: 0; opacity: .3; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+.artwork figcaption {
+  position: absolute; left: 14px; bottom: 10px; z-index: 1;
+  font-size: 11px; letter-spacing: 2px; color: rgba(42, 39, 35, .72);
+  text-shadow: 0 1px 5px rgba(247, 243, 234, .85);
+}
+.art-1 {
+  grid-row: span 2;
+  background:
+    radial-gradient(ellipse 70% 55% at 28% 30%, rgba(15, 107, 99, .62), rgba(15, 107, 99, .18) 55%, transparent 75%),
+    radial-gradient(ellipse 55% 45% at 70% 72%, rgba(154, 123, 30, .5), rgba(154, 123, 30, .14) 60%, transparent 80%),
+    radial-gradient(ellipse 90% 70% at 50% 95%, rgba(15, 107, 99, .3), transparent 70%),
+    #f2ecdf;
+}
+.art-2 {
+  background:
+    radial-gradient(ellipse 65% 80% at 65% 30%, rgba(143, 32, 80, .58), rgba(143, 32, 80, .16) 58%, transparent 78%),
+    radial-gradient(ellipse 50% 40% at 25% 80%, rgba(143, 32, 80, .32), transparent 72%),
+    #f4eee2;
+}
+.art-3 {
+  background:
+    radial-gradient(ellipse 60% 70% at 30% 40%, rgba(154, 123, 30, .55), rgba(154, 123, 30, .16) 60%, transparent 80%),
+    radial-gradient(ellipse 70% 55% at 75% 70%, rgba(36, 65, 143, .48), rgba(36, 65, 143, .14) 62%, transparent 82%),
+    #f3ede0;
+}
+.art-4 {
+  grid-column: span 2;
+  background:
+    radial-gradient(ellipse 45% 75% at 18% 45%, rgba(36, 65, 143, .5), rgba(36, 65, 143, .15) 58%, transparent 78%),
+    radial-gradient(ellipse 55% 65% at 62% 55%, rgba(15, 107, 99, .46), rgba(15, 107, 99, .13) 60%, transparent 80%),
+    radial-gradient(ellipse 35% 45% at 88% 30%, rgba(15, 107, 99, .3), transparent 70%),
+    #f2ede1;
+}
+.art-5 {
+  background:
+    radial-gradient(ellipse 70% 60% at 60% 35%, rgba(143, 32, 80, .52), rgba(143, 32, 80, .15) 58%, transparent 78%),
+    radial-gradient(ellipse 45% 40% at 25% 75%, rgba(38, 34, 30, .45), transparent 72%),
+    #f4efe3;
+}
+.art-6 {
+  background:
+    radial-gradient(ellipse 40% 35% at 55% 45%, rgba(255, 255, 255, .85), transparent 68%),
+    radial-gradient(ellipse 80% 65% at 45% 55%, rgba(15, 107, 99, .5), rgba(15, 107, 99, .15) 58%, transparent 80%),
+    radial-gradient(ellipse 40% 35% at 80% 25%, rgba(15, 107, 99, .28), transparent 68%),
+    #f1ecdf;
+}
 </style>
 </head>
 <body>
@@ -239,7 +298,18 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   <div class="ink-grid" id="inkGrid"></div>
 </section>
 
-<section id="gallery"><!-- Task 7: 作品展示 --></section>
+<section id="gallery">
+  <h2 class="section-title">作品</h2>
+  <p class="section-sub">這些墨，到了手上能長成什麼樣子。<span class="placeholder-note">（示意視覺，實作照即將上線）</span></p>
+  <div class="art-wall">
+    <figure class="artwork art-1"><figcaption>初潮 × 鎏金</figcaption></figure>
+    <figure class="artwork art-2"><figcaption>夜枝</figcaption></figure>
+    <figure class="artwork art-3"><figcaption>鎏金 × 靜淵</figcaption></figure>
+    <figure class="artwork art-4"><figcaption>靜淵 × 初潮</figcaption></figure>
+    <figure class="artwork art-5"><figcaption>夜枝 × 玄墨</figcaption></figure>
+    <figure class="artwork art-6"><figcaption>初潮 × 雲白</figcaption></figure>
+  </div>
+</section>
 
 <section id="about"><!-- Task 8: 關於序序 --></section>
 
