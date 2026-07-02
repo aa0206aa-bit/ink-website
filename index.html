@@ -316,14 +316,14 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   <p class="section-sub">選一種技法、選一色墨，在這裡親手感受流動墨的脾氣。</p>
   <div class="studio">
     <div class="toolbar">
-      <div class="modes" role="group" aria-label="技法選擇">
-        <button class="mode-btn active" data-mode="drop" aria-pressed="true">滴墨</button>
-        <button class="mode-btn" data-mode="blow" aria-pressed="false">吹墨</button>
-        <button class="mode-btn" data-mode="tilt" aria-pressed="false">傾斜</button>
-      </div>
       <div class="modes" role="group" aria-label="紙色選擇">
         <button class="mode-btn paper-btn active" data-paper="light" aria-pressed="true">淺紙</button>
         <button class="mode-btn paper-btn" data-paper="dark" aria-pressed="false">深紙</button>
+      </div>
+      <div class="modes" role="group" aria-label="技法選擇">
+        <button class="mode-btn active" data-mode="drop" aria-pressed="true">滴墨</button>
+        <button class="mode-btn" data-mode="blow" aria-pressed="false">吹墨</button>
+        <button class="mode-btn" data-mode="line" aria-pressed="false">線條</button>
       </div>
       <p class="mode-hint" id="modeHint">輕點畫布，看墨滴落、暈開</p>
       <button class="clear-btn" id="shareBtn">完成作品 ↗</button>
@@ -409,7 +409,7 @@ const INKS = [
 const MODE_HINTS = {
   drop: '輕點畫布，看墨滴落、暈開',
   blow: '先滴幾滴墨，按住拖曳，氣流會推出觸鬚紋路',
-  tilt: '按住往一個方向拖，整片墨會隨傾斜流動',
+  line: '按住拖曳畫線，墨線會隨水微微暈開',
 };
 
 // ---- 互動體驗區 ----

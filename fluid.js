@@ -18,6 +18,8 @@ const CONFIG = {
   DROP_RADIUS: 0.0035,            // 滴墨染料半徑（uv² 高斯）
   DROP_PULSE: 55,                 // 滴墨徑向速度脈衝強度
   DROP_MOVE_GAP: 0.06,            // 拖曳連滴的最小間距（uv）
+  LINE_RADIUS: 0.0005,            // 線條墨半徑（細，uv² 高斯）
+  LINE_GAP: 0.006,                // 線條下墨步距（密→連續線）
   BLOW_FORCE: 4500,               // 吹墨推力（Task 3 使用）
   BLOW_RADIUS: 0.0007,            // 吹墨作用半徑（細→觸鬚）（Task 3）
   TILT_FORCE: 230,                // 傾斜全域力（Task 3）
@@ -293,7 +295,7 @@ export class InkSimulation {
   }
 
   setMode(mode) {
-    if (mode === 'drop' || mode === 'blow' || mode === 'tilt') this.mode = mode;
+    if (mode === 'drop' || mode === 'blow' || mode === 'line' || mode === 'tilt') this.mode = mode;
   }
 
   // 紙色切換：light＝和紙米色（減法混色）／dark＝炭黑（發光墨）。
@@ -505,6 +507,9 @@ export class InkSimulation {
       if (this.mode === 'drop') {
         this._drop(x, y);
         this._pointer.lastDropX = x; this._pointer.lastDropY = y;
+      } else if (this.mode === 'line') {
+        this._lineDot(x, y);
+        this._pointer.lastDropX = x; this._pointer.lastDropY = y;
       } else if (this.mode === 'tilt') {
         this._pointer.tiltStartX = x; this._pointer.tiltStartY = y;
       }
@@ -522,6 +527,20 @@ export class InkSimulation {
       } else if (this.mode === 'blow') {
         // 吹墨：沿移動方向注入細窄強推力，不注入染料（推的是既有的墨）
         this._splatVelocity(x, y, dx * CONFIG.BLOW_FORCE, dy * CONFIG.BLOW_FORCE, CONFIG.BLOW_RADIUS);
+      } else if (this.mode === 'line') {
+        // 線條：沿軌跡以固定步距插值下細墨（快速拖曳不斷線），不加脈衝——墨線只隨水微暈
+        const lx = this._pointer.lastDropX, ly = this._pointer.lastDropY;
+        const segLen = Math.hypot(x - lx, y - ly);
+        const steps = Math.floor(segLen / CONFIG.LINE_GAP);
+        for (let i = 1; i <= steps; i++) {
+          const t = (i * CONFIG.LINE_GAP) / segLen;
+          this._lineDot(lx + (x - lx) * t, ly + (y - ly) * t);
+        }
+        if (steps > 0) {
+          const t = (steps * CONFIG.LINE_GAP) / segLen;
+          this._pointer.lastDropX = lx + (x - lx) * t;
+          this._pointer.lastDropY = ly + (y - ly) * t;
+        }
       } else if (this.mode === 'tilt') {
         // 傾斜：拖曳向量 → 全域力；拖滿半個畫布寬 = 最大力
         const tx = x - this._pointer.tiltStartX, ty = y - this._pointer.tiltStartY;
@@ -626,6 +645,13 @@ export class InkSimulation {
 
   _drop(x, y) {
     this.splatAt(x, y);
+  }
+
+  // 線條的單點下墨：細半徑、無速度脈衝（線要穩，只隨水微暈）
+  _lineDot(x, y) {
+    const a = this._absorption;
+    const s = this.paperMode === 'dark' ? CONFIG.INK_STRENGTH_DARK : CONFIG.INK_STRENGTH;
+    this._splatDye(x, y, [a.x * s, a.y * s, a.z * s], CONFIG.LINE_RADIUS);
   }
 
   _step(dt) {
