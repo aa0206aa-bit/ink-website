@@ -668,6 +668,11 @@ if (sim) {
   const PERFORM_GAP = reduced ? 7000 : 3500;
   const loadedAt = performance.now();
   let userHasDrawn = false;
+  // 首次下筆＝洗去開場演示、還一張乾淨的紙。父層 capture 保證先於引擎滴墨執行，
+  // 使用者的第一滴墨落在全新畫布上
+  document.querySelector('.canvas-wrap').addEventListener('pointerdown', () => {
+    if (!userHasDrawn) sim._clearImmediate();
+  }, { capture: true });
   canvas.addEventListener('pointerdown', () => { userHasDrawn = true; });
   setInterval(() => {
     if (userHasDrawn || sim.paused || performance.now() - loadedAt < IDLE_MS) return;
