@@ -153,6 +153,31 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 .palette-label { font-size: 12px; color: var(--text-faint); }
 .palette-label a { color: var(--text-dim); border-bottom: 1px dotted var(--text-faint); }
 .palette-label a:hover { color: var(--gold); }
+
+/* ===== 墨色產品區 ===== */
+.ink-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+.ink-card {
+  background: var(--panel);
+  border: 1px solid rgba(42, 39, 35, .08);
+  border-radius: 6px;
+  padding: 32px 24px;
+  text-align: center;
+  transition: transform .3s, border-color .3s;
+}
+.ink-card:hover { transform: translateY(-4px); border-color: var(--gold-dim); }
+.ink-dot {
+  width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 18px;
+  border: 1px solid rgba(42, 39, 35, .1); /* 雲白等淺色在米白卡上需要輪廓 */
+}
+.ink-no { color: var(--text-faint); font-size: 11px; letter-spacing: 3px; }
+.ink-name { font-family: var(--serif); font-size: 22px; letter-spacing: 6px; margin: 6px 0 18px; }
+.buy-btn {
+  display: inline-block; padding: 9px 26px;
+  border: 1px solid var(--gold-dim); color: var(--gold);
+  font-size: 12px; letter-spacing: 2px;
+  transition: background .3s;
+}
+.buy-btn:hover { background: rgba(138, 109, 31, .1); }
 </style>
 </head>
 <body>
@@ -208,7 +233,11 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   </div>
 </section>
 
-<section id="inks"><!-- Task 6: 墨色產品區 --></section>
+<section id="inks">
+  <h2 class="section-title">墨色</h2>
+  <p class="section-sub">剛剛玩的顏色，就在這裡。每一瓶都是小量手工調製。<!-- 佔位文案 --></p>
+  <div class="ink-grid" id="inkGrid"></div>
+</section>
 
 <section id="gallery"><!-- Task 7: 作品展示 --></section>
 
@@ -357,6 +386,16 @@ if (sim) {
     syncRun();
   });
 }
+
+// ---- 墨色產品區（由 INKS 渲染：與色盤同一份資料；不依賴 WebGL，fallback 時也渲染）----
+document.getElementById('inkGrid').innerHTML = INKS.map((ink) => `
+  <article class="ink-card">
+    <div class="ink-dot" style="background: radial-gradient(circle at 35% 32%, ${ink.hex}, ${ink.hex}99 62%, ${ink.hex}55);"></div>
+    <p class="ink-no">流動墨 №${ink.no}</p>
+    <h3 class="ink-name">${ink.name}</h3>
+    <a class="buy-btn" href="${ink.buyUrl}" target="_blank" rel="noopener">帶它回家 ↗</a>
+  </article>
+`).join('');
 </script>
 </body>
 </html>
