@@ -268,6 +268,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 }
 .sign-input:focus { outline: none; border-color: var(--gold-dim); }
 .sign-input::placeholder { color: var(--text-faint); letter-spacing: 2px; }
+.share-hint { font-size: 12px; color: var(--text-faint); letter-spacing: 1px; margin-top: 10px; text-align: center; }
 .share-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
 
 /* ===== RWD ===== */
@@ -389,6 +390,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
       <button class="mode-btn fmt-btn" data-fmt="portrait" aria-pressed="false">IG 直式</button>
     </div>
     <input class="sign-input" id="signInput" type="text" maxlength="16" placeholder="為這個作品命名（選填，未命名則為「無題」）" autocomplete="off">
+    <p class="share-hint" id="shareHint" hidden>要存入相簿：點「分享」後選「儲存影像」。</p>
     <div class="share-actions">
       <button class="clear-btn" id="shareSend">分享</button>
       <button class="clear-btn" id="shareSave">下載</button>
@@ -635,8 +637,15 @@ if (sim) {
     shareImg.src = URL.createObjectURL(blob);
     shareSend.hidden = !(navigator.canShare && navigator.canShare({ files: [shareFile] }));
   };
+  // iOS Safari 對 blob 下載不可靠——隱藏下載鈕，引導走分享面板的「儲存影像」
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   document.getElementById('shareBtn').addEventListener('click', async () => {
     await rebuildArtwork();
+    if (isIOS && !shareSend.hidden) {
+      document.getElementById('shareSave').hidden = true;
+      document.getElementById('shareHint').hidden = false;
+    }
     shareModal.hidden = false;
   });
   let signTimer = 0;
