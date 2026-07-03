@@ -227,6 +227,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   position: relative; margin: 0; border-radius: 5px; overflow: hidden;
   border: 1px solid rgba(42, 39, 35, .08);
 }
+.artwork-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .artwork::after {
   /* 紙感噪點（SVG feTurbulence，零外部請求） */
   content: ""; position: absolute; inset: 0; opacity: .3; mix-blend-mode: overlay;
@@ -407,12 +408,15 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 
 <section id="gallery">
   <h2 class="section-title">作品</h2>
-  <p class="section-sub">在這片水面上誕生過的墨作——每一張都無法重來。<span class="placeholder-note">（示意視覺，精選墨作即將上線）</span></p><!-- 佔位文案：畫作體驗定位 -->
+  <p class="section-sub">在這片水面上誕生過的墨作——每一張都無法重來。<span class="placeholder-note">（除示範作外皆為示意視覺）</span></p><!-- 佔位文案：畫作體驗定位 -->
   <div class="art-wall">
     <figure class="artwork art-1"><figcaption>初潮 × 鎏金</figcaption></figure>
     <figure class="artwork art-2"><figcaption>夜枝</figcaption></figure>
     <figure class="artwork art-3"><figcaption>鎏金 × 靜淵</figcaption></figure>
-    <figure class="artwork art-4"><figcaption>靜淵 × 初潮</figcaption></figure>
+    <figure class="artwork art-4">
+      <img class="artwork-img" src="./art-demo-sansui.jpg" alt="倣古山水——玄墨、夜枝與雲白畫成的示範墨作" loading="lazy">
+      <figcaption>倣古山水（示範）· 玄墨 × 夜枝 × 雲白</figcaption>
+    </figure>
     <figure class="artwork art-5"><figcaption>夜枝 × 霜銀</figcaption></figure>
     <figure class="artwork art-6"><figcaption>初潮 × 雲白</figcaption></figure>
   </div>
