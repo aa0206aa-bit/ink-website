@@ -239,47 +239,10 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   text-shadow: 0 1px 5px rgba(247, 243, 234, .85);
 }
 .artwork figcaption.caption-on-dark { color: rgba(245, 242, 234, .8); text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
-.art-1 {
-  grid-row: span 2;
-  background:
-    radial-gradient(ellipse 70% 55% at 28% 30%, rgba(15, 107, 99, .62), rgba(15, 107, 99, .18) 55%, transparent 75%),
-    radial-gradient(ellipse 55% 45% at 70% 72%, rgba(154, 123, 30, .5), rgba(154, 123, 30, .14) 60%, transparent 80%),
-    radial-gradient(ellipse 90% 70% at 50% 95%, rgba(15, 107, 99, .3), transparent 70%),
-    #f2ecdf;
-}
-.art-2 {
-  background:
-    radial-gradient(ellipse 65% 80% at 65% 30%, rgba(143, 32, 80, .58), rgba(143, 32, 80, .16) 58%, transparent 78%),
-    radial-gradient(ellipse 50% 40% at 25% 80%, rgba(143, 32, 80, .32), transparent 72%),
-    #f4eee2;
-}
-.art-3 {
-  background:
-    radial-gradient(ellipse 60% 70% at 30% 40%, rgba(154, 123, 30, .55), rgba(154, 123, 30, .16) 60%, transparent 80%),
-    radial-gradient(ellipse 70% 55% at 75% 70%, rgba(36, 65, 143, .48), rgba(36, 65, 143, .14) 62%, transparent 82%),
-    #f3ede0;
-}
-.art-4 {
-  grid-column: span 2;
-  background:
-    radial-gradient(ellipse 45% 75% at 18% 45%, rgba(36, 65, 143, .5), rgba(36, 65, 143, .15) 58%, transparent 78%),
-    radial-gradient(ellipse 55% 65% at 62% 55%, rgba(15, 107, 99, .46), rgba(15, 107, 99, .13) 60%, transparent 80%),
-    radial-gradient(ellipse 35% 45% at 88% 30%, rgba(15, 107, 99, .3), transparent 70%),
-    #f2ede1;
-}
-.art-5 {
-  background:
-    radial-gradient(ellipse 70% 60% at 60% 35%, rgba(143, 32, 80, .52), rgba(143, 32, 80, .15) 58%, transparent 78%),
-    radial-gradient(ellipse 45% 40% at 25% 75%, rgba(122, 130, 137, .5), transparent 72%),
-    #f4efe3;
-}
-.art-6 {
-  background:
-    radial-gradient(ellipse 40% 35% at 55% 45%, rgba(255, 255, 255, .85), transparent 68%),
-    radial-gradient(ellipse 80% 65% at 45% 55%, rgba(15, 107, 99, .5), rgba(15, 107, 99, .15) 58%, transparent 80%),
-    radial-gradient(ellipse 40% 35% at 80% 25%, rgba(15, 107, 99, .28), transparent 68%),
-    #f1ecdf;
-}
+.artwork { background: var(--panel); } /* 圖載入前底色 */
+.art-1 { grid-row: span 2; }
+.art-4 { grid-column: span 2; }
+.art-4 .artwork-img, .art-5 .artwork-img { background: #17161a; } /* 深紙作品載入前底 */
 
 /* ===== 關於／Footer ===== */
 .about { text-align: center; }
@@ -409,17 +372,32 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 
 <section id="gallery">
   <h2 class="section-title">作品</h2>
-  <p class="section-sub">在這片水面上誕生過的墨作——每一張都無法重來。<span class="placeholder-note">（除示範作外皆為示意視覺）</span></p><!-- 佔位文案：畫作體驗定位 -->
+  <p class="section-sub">在這片水面上誕生過的墨作——每一張都無法重來，全部以本站畫具完成。</p><!-- 佔位文案：畫作體驗定位 -->
   <div class="art-wall">
-    <figure class="artwork art-1"><figcaption>初潮 × 鎏金</figcaption></figure>
-    <figure class="artwork art-2"><figcaption>夜枝</figcaption></figure>
-    <figure class="artwork art-3"><figcaption>鎏金 × 靜淵</figcaption></figure>
-    <figure class="artwork art-4">
-      <img class="artwork-img" src="./art-demo-abyss.jpg" alt="深夜之海——深紙上以靜淵、雲白與霜銀畫成的示範墨作" loading="lazy">
-      <figcaption class="caption-on-dark">深夜之海（示範）· 深紙 · 靜淵 × 雲白 × 霜銀</figcaption>
+    <figure class="artwork art-1">
+      <img class="artwork-img" src="./art-1.jpg" alt="初潮之息——初潮與鎏金的縱向湧流" loading="lazy">
+      <figcaption>初潮之息 · 初潮 × 鎏金</figcaption>
     </figure>
-    <figure class="artwork art-5"><figcaption>夜枝 × 霜銀</figcaption></figure>
-    <figure class="artwork art-6"><figcaption>初潮 × 雲白</figcaption></figure>
+    <figure class="artwork art-2">
+      <img class="artwork-img" src="./art-2.jpg" alt="夜枝呼吸——夜枝單色暈染與一點留白" loading="lazy">
+      <figcaption>夜枝呼吸 · 夜枝 × 雲白</figcaption>
+    </figure>
+    <figure class="artwork art-3">
+      <img class="artwork-img" src="./art-3.jpg" alt="鎏金入淵——鎏金與靜淵的雙色對流" loading="lazy">
+      <figcaption>鎏金入淵 · 鎏金 × 靜淵</figcaption>
+    </figure>
+    <figure class="artwork art-4">
+      <img class="artwork-img" src="./art-4.jpg" alt="深夜之海——深紙上以靜淵、雲白與霜銀畫成" loading="lazy">
+      <figcaption class="caption-on-dark">深夜之海 · 深紙 · 靜淵 × 雲白 × 霜銀</figcaption>
+    </figure>
+    <figure class="artwork art-5">
+      <img class="artwork-img" src="./art-5.jpg" alt="霜夜——深紙上的霜銀渦旋與夜枝紅點" loading="lazy">
+      <figcaption class="caption-on-dark">霜夜 · 深紙 · 霜銀 × 夜枝</figcaption>
+    </figure>
+    <figure class="artwork art-6">
+      <img class="artwork-img" src="./art-6.jpg" alt="初潮與雲——初潮環抱中央的雲白留白" loading="lazy">
+      <figcaption>初潮與雲 · 初潮 × 雲白</figcaption>
+    </figure>
   </div>
 </section>
 
