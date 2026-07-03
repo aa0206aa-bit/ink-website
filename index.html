@@ -438,7 +438,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 </footer>
 
 <script type="module">
-import { InkSimulation } from './fluid.js';
+import { InkSimulation } from './fluid.js?v=20260703'; // 版本參數：更新引擎時 bump，避免瀏覽器 module 快取吃到舊版
 
 // ===== 產品資料：單一事實來源（色盤＋產品卡都由此渲染；改連結/色號只改這裡）=====
 // desc 為佔位文案（墨色性格一句話），日後由決策者替換
