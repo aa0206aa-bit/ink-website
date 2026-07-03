@@ -426,7 +426,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 <div class="share-modal" id="shareModal" hidden>
   <div class="share-card">
     <img class="share-img" id="shareImg" alt="你的墨作">
-    <input class="sign-input" id="signInput" type="text" maxlength="16" placeholder="替作品簽名（選填）" autocomplete="off">
+    <input class="sign-input" id="signInput" type="text" maxlength="16" placeholder="為這個作品命名（選填，未命名則為「無題」）" autocomplete="off">
     <div class="share-actions">
       <button class="clear-btn" id="shareSend">分享</button>
       <button class="clear-btn" id="shareSave">下載</button>
@@ -614,17 +614,19 @@ if (sim) {
     ctx.textBaseline = 'middle';
     const midY = shot.height + frame + (frame + captionH) / 2 - frame / 2;
     ctx.textAlign = 'left';
-    ctx.fillText(`${signature || '序序墨作'} · ${dateStr}`, frame, midY);
+    ctx.fillText(`${signature || '無題'} · ${dateStr}`, frame, midY);
     ctx.textAlign = 'right';
     ctx.fillText('序 序', out.width - frame, midY);
     return out;
   };
   const rebuildArtwork = async () => {
-    const art = composeArtwork(signInput.value.trim());
+    const title = signInput.value.trim();
+    const art = composeArtwork(title);
     const blob = await new Promise((r) => art.toBlob(r, 'image/png'));
     const d = new Date();
     const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    shareFile = new File([blob], `序序墨作-${stamp}.png`, { type: 'image/png' });
+    const safeTitle = (title || '無題').replace(/[\\/:*?"<>|]/g, '');
+    shareFile = new File([blob], `${safeTitle}-${stamp}.png`, { type: 'image/png' });
     if (shareImg.src.startsWith('blob:')) URL.revokeObjectURL(shareImg.src);
     shareImg.src = URL.createObjectURL(blob);
     shareSend.hidden = !(navigator.canShare && navigator.canShare({ files: [shareFile] }));
