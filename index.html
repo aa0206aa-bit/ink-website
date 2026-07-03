@@ -220,29 +220,18 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 }
 .buy-btn:hover { background: rgba(138, 109, 31, .1); }
 
-/* ===== 作品展示（紙上墨暈佔位視覺）===== */
+/* ===== 作品展示（IG 直式卡 4:5，落款已在卡上）===== */
 .placeholder-note { color: var(--text-faint); font-size: 12px; }
-.art-wall { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 200px; gap: 14px; }
+.art-wall { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .artwork {
   position: relative; margin: 0; border-radius: 5px; overflow: hidden;
   border: 1px solid rgba(42, 39, 35, .08);
+  aspect-ratio: 4 / 5;
+  background: var(--panel); /* 圖載入前底色 */
+  transition: transform .3s;
 }
+.artwork:hover { transform: translateY(-4px); }
 .artwork-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.artwork::after {
-  /* 紙感噪點（SVG feTurbulence，零外部請求） */
-  content: ""; position: absolute; inset: 0; opacity: .3; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-}
-.artwork figcaption {
-  position: absolute; left: 14px; bottom: 10px; z-index: 1;
-  font-size: 11px; letter-spacing: 2px; color: rgba(42, 39, 35, .72);
-  text-shadow: 0 1px 5px rgba(247, 243, 234, .85);
-}
-.artwork figcaption.caption-on-dark { color: rgba(245, 242, 234, .8); text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
-.artwork { background: var(--panel); } /* 圖載入前底色 */
-.art-1 { grid-row: span 2; }
-.art-4 { grid-column: span 2; }
-.art-4 .artwork-img, .art-5 .artwork-img { background: #17161a; } /* 深紙作品載入前底 */
 
 /* ===== 關於／Footer ===== */
 .about { text-align: center; }
@@ -291,8 +280,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   .toolbar { gap: 10px; }
   .palette { gap: 6px; }
   .swatch { width: 36px; height: 36px; } /* 七球一排：36×7＋6×6＝288 < 299 可用寬 */
-  .art-wall { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }
-  .art-4 { grid-column: span 2; }
+  .art-wall { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 }
 </style>
 </head>
@@ -375,30 +363,12 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   <h2 class="section-title">作品</h2>
   <p class="section-sub">在這片水面上誕生過的墨作——每一張都無法重來，全部以本站畫具完成。</p><!-- 佔位文案：畫作體驗定位 -->
   <div class="art-wall">
-    <figure class="artwork art-1">
-      <img class="artwork-img" src="./art-1.jpg" alt="初潮之息——初潮與鎏金的縱向湧流" loading="lazy">
-      <figcaption>初潮之息 · 初潮 × 鎏金</figcaption>
-    </figure>
-    <figure class="artwork art-2">
-      <img class="artwork-img" src="./art-2.jpg" alt="夜枝呼吸——夜枝單色暈染與一點留白" loading="lazy">
-      <figcaption>夜枝呼吸 · 夜枝 × 雲白</figcaption>
-    </figure>
-    <figure class="artwork art-3">
-      <img class="artwork-img" src="./art-3.jpg" alt="鎏金入淵——鎏金與靜淵的雙色對流" loading="lazy">
-      <figcaption>鎏金入淵 · 鎏金 × 靜淵</figcaption>
-    </figure>
-    <figure class="artwork art-4">
-      <img class="artwork-img" src="./art-4.jpg" alt="深夜之海——深紙上以靜淵、雲白與霜銀畫成" loading="lazy">
-      <figcaption class="caption-on-dark">深夜之海 · 深紙 · 靜淵 × 雲白 × 霜銀</figcaption>
-    </figure>
-    <figure class="artwork art-5">
-      <img class="artwork-img" src="./art-5.jpg" alt="霜夜——深紙上的霜銀渦旋與夜枝紅點" loading="lazy">
-      <figcaption class="caption-on-dark">霜夜 · 深紙 · 霜銀 × 夜枝</figcaption>
-    </figure>
-    <figure class="artwork art-6">
-      <img class="artwork-img" src="./art-6.jpg" alt="初潮與雲——初潮環抱中央的雲白留白" loading="lazy">
-      <figcaption>初潮與雲 · 初潮 × 雲白</figcaption>
-    </figure>
+    <figure class="artwork"><img class="artwork-img" src="./art-1.jpg" alt="初潮之息——初潮與鎏金的縱向湧流" loading="lazy"></figure>
+    <figure class="artwork"><img class="artwork-img" src="./art-2.jpg" alt="夜枝呼吸——夜枝單色暈染與一點留白" loading="lazy"></figure>
+    <figure class="artwork"><img class="artwork-img" src="./art-3.jpg" alt="鎏金入淵——鎏金與靜淵的雙色對流" loading="lazy"></figure>
+    <figure class="artwork"><img class="artwork-img" src="./art-4.jpg" alt="深夜之海——深紙上以靜淵、雲白與霜銀畫成" loading="lazy"></figure>
+    <figure class="artwork"><img class="artwork-img" src="./art-5.jpg" alt="霜夜——深紙上的霜銀渦旋與夜枝紅點" loading="lazy"></figure>
+    <figure class="artwork"><img class="artwork-img" src="./art-6.jpg" alt="初潮與雲——初潮環抱中央的雲白留白" loading="lazy"></figure>
   </div>
 </section>
 
