@@ -125,7 +125,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 }
 .mode-btn:hover, .clear-btn:hover { color: var(--text); border-color: rgba(42, 39, 35, .5); }
 .mode-btn.active { color: var(--gold); border-color: var(--gold-dim); background: rgba(138, 109, 31, .08); }
-.canvas-wrap { position: relative; }
+.canvas-wrap { position: relative; max-width: 520px; margin: 0 auto; } /* 4:5 直式畫布置中（IG 輸出原生比例） */
 .canvas-hint {
   position: absolute; top: 16%; left: 24px; right: 24px;
   text-align: center; pointer-events: none;
@@ -134,7 +134,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 }
 .canvas-hint.faded { opacity: 0; }
 #inkCanvas {
-  width: 100%; height: 460px; display: block;
+  width: 100%; aspect-ratio: 4 / 5; display: block; /* IG 直式原生比例，畫完即發文尺寸 */
   border-radius: 4px; background: #efeae0;
   touch-action: none; cursor: crosshair;
   -webkit-user-select: none; user-select: none;
@@ -276,7 +276,6 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   .nav { padding: 14px 18px; }
   .nav-links { gap: 16px; font-size: 12px; letter-spacing: 2px; }
   .hero { min-height: 64vh; }
-  #inkCanvas { height: 340px; }
   .toolbar { gap: 10px; }
   .palette { gap: 6px; }
   .swatch { width: 36px; height: 36px; } /* 七球一排：36×7＋6×6＝288 < 299 可用寬 */
