@@ -270,6 +270,7 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   border: 1px solid rgba(42, 39, 35, .1);
 }
 .share-img { display: block; width: 100%; max-height: 58vh; object-fit: contain; border-radius: 3px; }
+.share-format { justify-content: center; margin-top: 14px; }
 .sign-input {
   display: block; width: 100%; margin-top: 14px;
   padding: 10px 14px; font-family: var(--serif); font-size: 15px; letter-spacing: 2px;
@@ -414,6 +415,10 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
 <div class="share-modal" id="shareModal" hidden>
   <div class="share-card">
     <img class="share-img" id="shareImg" alt="你的墨作">
+    <div class="modes share-format" role="group" aria-label="輸出格式">
+      <button class="mode-btn fmt-btn active" data-fmt="landscape" aria-pressed="true">橫式</button>
+      <button class="mode-btn fmt-btn" data-fmt="portrait" aria-pressed="false">IG 直式</button>
+    </div>
     <input class="sign-input" id="signInput" type="text" maxlength="16" placeholder="為這個作品命名（選填，未命名則為「無題」）" autocomplete="off">
     <div class="share-actions">
       <button class="clear-btn" id="shareSend">分享</button>
@@ -595,27 +600,56 @@ if (sim) {
   const shareSend = document.getElementById('shareSend');
   const signInput = document.getElementById('signInput');
   let shareFile = null;
+  let shareFormat = 'landscape';
+  const dateStamp = () => {
+    const d = new Date();
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const signCard = (ctx, isDark, fs) => {
+    ctx.font = `600 ${fs}px "Noto Serif TC", "Songti TC", serif`;
+    ctx.fillStyle = isDark ? 'rgba(245, 242, 234, .55)' : 'rgba(42, 39, 35, .55)';
+    ctx.textBaseline = 'middle';
+  };
   const composeArtwork = (signature) => {
     const shot = sim.snapshot();
     const isDark = sim.paperMode === 'dark';
+    const paper = isDark ? '#211f26' : '#f7f3ea';
+    const title = `${signature || '無題'} · ${dateStamp()}`;
+    if (shareFormat === 'portrait') {
+      // IG 直式 4:5（1080×1350）：橫幅原作完整置中、上下紙色留白、下方落款
+      const W = 1080, H = 1350;
+      const out = document.createElement('canvas');
+      out.width = W; out.height = H;
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = paper;
+      ctx.fillRect(0, 0, W, H);
+      const frame = Math.round(W * 0.07);
+      const imgW = W - frame * 2;
+      const imgH = Math.round(shot.height * imgW / shot.width);
+      const imgY = Math.round((H - imgH) / 2 - H * 0.03);
+      ctx.drawImage(shot, frame, imgY, imgW, imgH);
+      const fs = Math.max(15, Math.round(W * 0.021));
+      signCard(ctx, isDark, fs);
+      const capY = imgY + imgH + Math.round(H * 0.055);
+      ctx.textAlign = 'left';
+      ctx.fillText(title, frame, capY);
+      ctx.textAlign = 'right';
+      ctx.fillText('序 序', W - frame, capY);
+      return out;
+    }
     const frame = Math.round(shot.width * 0.055);
     const captionH = Math.round(shot.width * 0.05);
     const out = document.createElement('canvas');
     out.width = shot.width + frame * 2;
     out.height = shot.height + frame * 2 + captionH;
     const ctx = out.getContext('2d');
-    ctx.fillStyle = isDark ? '#211f26' : '#f7f3ea';
+    ctx.fillStyle = paper;
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.drawImage(shot, frame, frame);
-    const d = new Date();
-    const dateStr = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-    const fs = Math.max(13, Math.round(out.width * 0.016));
-    ctx.font = `600 ${fs}px "Noto Serif TC", "Songti TC", serif`;
-    ctx.fillStyle = isDark ? 'rgba(245, 242, 234, .55)' : 'rgba(42, 39, 35, .55)';
-    ctx.textBaseline = 'middle';
+    signCard(ctx, isDark, Math.max(13, Math.round(out.width * 0.016)));
     const midY = shot.height + frame + (frame + captionH) / 2 - frame / 2;
     ctx.textAlign = 'left';
-    ctx.fillText(`${signature || '無題'} · ${dateStr}`, frame, midY);
+    ctx.fillText(title, frame, midY);
     ctx.textAlign = 'right';
     ctx.fillText('序 序', out.width - frame, midY);
     return out;
@@ -639,8 +673,17 @@ if (sim) {
   let signTimer = 0;
   signInput.addEventListener('input', () => {
     clearTimeout(signTimer);
-    signTimer = setTimeout(rebuildArtwork, 350); // 簽名即時重合成（debounce）
+    signTimer = setTimeout(rebuildArtwork, 350); // 命名即時重合成（debounce）
   });
+  // 輸出格式切換：橫式（原作比例）／IG 直式 4:5
+  document.querySelectorAll('.fmt-btn').forEach((btn) => btn.addEventListener('click', () => {
+    document.querySelectorAll('.fmt-btn').forEach((b) => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    shareFormat = btn.dataset.fmt;
+    rebuildArtwork();
+  }));
   shareSend.addEventListener('click', () => {
     navigator.share({ files: [shareFile] }).catch(() => {}); // 用戶取消面板不算錯
   });
