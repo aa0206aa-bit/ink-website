@@ -323,8 +323,8 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
   .hero { min-height: 64vh; }
   #inkCanvas { height: 340px; }
   .toolbar { gap: 10px; }
-  .palette { gap: 8px; }
-  .swatch { width: 40px; height: 40px; } /* 40px＋窄間距：六球一排放得下 375px 螢幕（44px 會溢出） */
+  .palette { gap: 6px; }
+  .swatch { width: 36px; height: 36px; } /* 七球一排：36×7＋6×6＝288 < 299 可用寬 */
   .art-wall { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }
   .art-4 { grid-column: span 2; }
 }
@@ -368,6 +368,11 @@ section { max-width: var(--maxw); margin: 0 auto; padding: 96px 24px; }
         <button class="mode-btn active" data-mode="drop" aria-pressed="true">滴墨</button>
         <button class="mode-btn" data-mode="blow" aria-pressed="false">吹墨</button>
         <button class="mode-btn" data-mode="line" aria-pressed="false">線條</button>
+      </div>
+      <div class="modes" id="dropSizes" role="group" aria-label="滴墨大小">
+        <button class="mode-btn size-btn" data-size="small" aria-pressed="false">小</button>
+        <button class="mode-btn size-btn active" data-size="medium" aria-pressed="true">中</button>
+        <button class="mode-btn size-btn" data-size="large" aria-pressed="false">大</button>
       </div>
       <div class="modes" id="lineWidths" role="group" aria-label="線條粗細" hidden>
         <button class="mode-btn width-btn" data-width="thin" aria-pressed="false">細</button>
@@ -456,6 +461,7 @@ const INKS = [
   { no: '04', name: '靜淵', hex: '#24418f', desc: '深水不動聲色，藍得很安靜。' },
   { no: '05', name: '霜銀', hex: '#adb3b8', desc: '月光落在石階上的灰——深紙上最亮眼。' },
   { no: '06', name: '雲白', hex: '#ffffff', desc: '墨的留白、水的呼吸，滴在墨上會把墨推開。' },
+  { no: '07', name: '玄墨', hex: '#26221e', desc: '最老實的一色，所有墨的起點。' },
 ];
 
 const MODE_HINTS = {
@@ -495,6 +501,7 @@ if (sim) {
 
   const modeBtns = document.querySelectorAll('.mode-btn[data-mode]');
   const lineWidths = document.getElementById('lineWidths');
+  const dropSizes = document.getElementById('dropSizes');
   modeBtns.forEach((btn) => btn.addEventListener('click', () => {
     modeBtns.forEach((b) => {
       b.classList.toggle('active', b === btn);
@@ -502,7 +509,18 @@ if (sim) {
     });
     sim.setMode(btn.dataset.mode);
     showHint(MODE_HINTS[btn.dataset.mode], 4000);
-    lineWidths.hidden = btn.dataset.mode !== 'line'; // 粗細選項只在線條技法顯示
+    dropSizes.hidden = btn.dataset.mode !== 'drop';  // 大小選項只在滴墨顯示
+    lineWidths.hidden = btn.dataset.mode !== 'line'; // 粗細選項只在線條顯示
+  }));
+
+  // 滴墨大小
+  const sizeBtns = document.querySelectorAll('.size-btn');
+  sizeBtns.forEach((btn) => btn.addEventListener('click', () => {
+    sizeBtns.forEach((b) => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    sim.setDropSize(btn.dataset.size);
   }));
 
   // 線條粗細

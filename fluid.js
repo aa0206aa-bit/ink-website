@@ -1,6 +1,6 @@
 // fluid.js — 序序流體引擎
 // Stable fluids on GPU（Three.js 0.184.0 / WebGL2 / ShaderMaterial GLSL1 語法）
-// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / setPaper / setLineWidth / clear / splatAt / stir / snapshot / pause / resume / destroy
+// 對外介面：new InkSimulation(canvas, opts?) / setColor / setMode / setPaper / setLineWidth / setDropSize / clear / splatAt / stir / snapshot / pause / resume / destroy
 // 減法混色：dye field 存 absorption（吸收）向量，顯示 paper * exp(-absorption)（Beer-Lambert）
 // clear() 為洗い流す式漸淡（約 1.5 秒），非瞬間清空
 
@@ -15,8 +15,11 @@ const CONFIG = {
   CURL_STRENGTH: 24,              // 渦度增強（墨紋捲曲感）
   VELOCITY_DISSIPATION: 0.28,     // 速度消散（越大流動停得越快）
   DYE_DISSIPATION: 0,             // 染料不消散——畫作體驗：墨乾了就留在紙上，清除靠洗い流す
-  DROP_RADIUS: 0.0035,            // 滴墨染料半徑（uv² 高斯）
-  DROP_PULSE: 55,                 // 滴墨徑向速度脈衝強度
+  DROP_SIZES: {                   // 滴墨三檔：{ 染料半徑（uv² 高斯）, 徑向脈衝 }（小滴點苔、大滴鋪面）
+    small:  { radius: 0.001,  pulse: 32 },
+    medium: { radius: 0.0035, pulse: 55 },
+    large:  { radius: 0.009,  pulse: 80 },
+  },
   DROP_MOVE_GAP: 0.06,            // 拖曳連滴的最小間距（uv）
   LINE_WIDTHS: { thin: 0.00015, medium: 0.0005, thick: 0.002 }, // 線條墨半徑三檔（uv² 高斯；視覺線寬 ∝ √值）
   LINE_GAP: 0.006,                // 線條下墨步距（密→連續線）
@@ -270,6 +273,7 @@ export class InkSimulation {
     this.mode = 'drop';
     this.paperMode = 'light';
     this._lineRadius = CONFIG.LINE_WIDTHS.medium;
+    this._dropSize = CONFIG.DROP_SIZES.medium;
     this.color = new THREE.Color('#0f6b63');
     this._absorption = new THREE.Vector3();
     this._toInk(this.color, this._absorption);
@@ -307,6 +311,11 @@ export class InkSimulation {
   // 線條粗細：'thin' | 'medium' | 'thick'
   setLineWidth(width) {
     if (CONFIG.LINE_WIDTHS[width]) this._lineRadius = CONFIG.LINE_WIDTHS[width];
+  }
+
+  // 滴墨大小：'small' | 'medium' | 'large'
+  setDropSize(size) {
+    if (CONFIG.DROP_SIZES[size]) this._dropSize = CONFIG.DROP_SIZES[size];
   }
 
   // 紙色切換：light＝和紙米色（減法混色）／dark＝炭黑（發光墨）。
@@ -361,8 +370,8 @@ export class InkSimulation {
       a = this._toInk(new THREE.Color(hex), new THREE.Vector3());
     }
     const s = this.paperMode === 'dark' ? CONFIG.INK_STRENGTH_DARK : CONFIG.INK_STRENGTH;
-    this._splatDye(u, v, [a.x * s, a.y * s, a.z * s], CONFIG.DROP_RADIUS);
-    this._splatVelocity(u, v, CONFIG.DROP_PULSE, 0, CONFIG.DROP_RADIUS * 0.9, true);
+    this._splatDye(u, v, [a.x * s, a.y * s, a.z * s], this._dropSize.radius);
+    this._splatVelocity(u, v, this._dropSize.pulse, 0, this._dropSize.radius * 0.9, true);
   }
 
   // 程式化輕水流（自動演出用）：在 u,v 注入方向性速度
